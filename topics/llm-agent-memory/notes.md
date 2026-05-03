@@ -238,6 +238,30 @@ None of these are memory-specific yet — applying automated prompt optimization
 - Can automated prompt optimization (AutoPDL, SICA) be applied specifically to memory prompts?
 - Is there a retrieval strategy that avoids static embedding drift without requiring full re-indexing?
 
+## Code agent benchmarks (added 2026-05-03)
+
+The code agent benchmark space is dominated by SWE-bench and its variants, most of which treat tasks as *independent* — no memory across tasks. Only a few explicitly test memory or context accumulation.
+
+*SWE-bench (original, 2310.06770)*
+The baseline: resolve real GitHub issues using repo context. Single-task, no memory component. State of the art is around 50% on Verified subset as of early 2026. Not a memory benchmark — included here as the reference point everything else extends.
+
+*SWE-Bench-CL (2507.00014)*
+The most directly memory-relevant code benchmark. Takes SWE-Bench Verified tasks and organizes them chronologically by natural repo evolution, then evaluates how an agent accumulates knowledge across sequential tasks. Uses a FAISS-backed semantic memory module. Metrics: average accuracy, forgetting rate, forward/backward transfer, tool-use efficiency. Tests the stability-plasticity trade-off: learning new things without forgetting old ones. Closest analog to the conversational memory benchmarks but for code.
+
+*SWE-EVO (2512.18470)*
+Long-horizon software evolution scenarios: the agent must handle a sequence of changes to a codebase, not just one isolated issue. Tests multi-step planning and state tracking across an evolving repo. Memory here means tracking what has already been changed and why.
+
+*LoCoEval (2603.06358)*
+Repository-oriented conversational context management. Simulates a developer having a long multi-turn conversation with a code assistant — requirements, clarifications, noise — until the context balloons to 64K–256K tokens. Tests: topic awareness, information extraction, and code generation (Pass@1). 128 samples, ~50 turns per sample. More about context compression and retrieval than persistent long-term memory.
+
+*LoCoBench (2509.09614)*
+Long-context software engineering at scale. 8,000 scenarios with context lengths from 10K to 1M tokens. Measures performance degradation as context grows. Diagnostic rather than memory-system-focused.
+
+*What's missing:*
+No current benchmark tests an agent working on the same codebase over weeks or months — accumulating architectural knowledge, learned bug patterns, team conventions, and past decisions. That's the code-agent equivalent of the multi-session personalization problem in conversational memory, and it is an open gap.
+
+The LLM-as-memory-manager paradigm (Generative Agents, A-Mem) has not been applied to code agents in any of these benchmarks. SWE-Bench-CL is the closest beachhead, but its memory is embedding-based (FAISS) with no LLM-driven write/reflect policy.
+
 ## Open Questions
 - How should agents decide when to forget versus summarize?
 - How can memory provenance be made first-class in generation?

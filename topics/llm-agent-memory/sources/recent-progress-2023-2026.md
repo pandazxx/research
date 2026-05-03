@@ -93,6 +93,27 @@
     - URL: https://arxiv.org/abs/2512.09108
     - Why it matters: agents that rewrite their own prompts and heuristics via LLM-proposed edits; 17–53% gains on coding tasks.
 
+## Code agent benchmarks (added 2026-05-03)
+22. SWE-bench (2023). *Can Language Models Resolve Real-world GitHub Issues?*
+    - URL: https://arxiv.org/abs/2310.06770
+    - Why it matters: the reference code agent benchmark; single-task, no memory. Baseline for all extensions.
+
+23. SWE-Bench-CL (2025). *Continual Learning for Coding Agents.*
+    - URL: https://arxiv.org/abs/2507.00014
+    - Why it matters: only code benchmark with explicit memory across tasks; chronological repo evolution; FAISS memory; forgetting/transfer metrics.
+
+24. SWE-EVO (2025). *Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios.*
+    - URL: https://arxiv.org/abs/2512.18470
+    - Why it matters: long-horizon sequential changes to a codebase; tests state tracking across evolving repo.
+
+25. LoCoEval (2026). *A Scalable Benchmark for Repository-Oriented Long-Horizon Conversational Context Management.*
+    - URL: https://arxiv.org/abs/2603.06358
+    - Why it matters: 50-turn code assistant conversations; tests context compression and extraction under 64K–256K token pressure.
+
+26. LoCoBench (2025). *A Benchmark for Long-Context LLMs in Complex Software Engineering.*
+    - URL: https://arxiv.org/abs/2509.09614
+    - Why it matters: 8,000 scenarios from 10K to 1M tokens; diagnostic tool for context length degradation.
+
 ## Reliability / relevance notes
 - Priority given to primary sources (arXiv/ACL anthology) over blog summaries.
 - For very recent papers (2025–2026), validate claims against the PDF before citing specific numbers.
