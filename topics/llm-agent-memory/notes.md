@@ -80,6 +80,37 @@ If you want to understand the field quickly, study in this order:
 3. Benchmarks and failure modes (especially temporal and contradiction errors).
 4. System trade-offs (quality vs latency vs privacy).
 
+## LLM-as-memory-manager paradigm (focal research direction)
+
+**User observation (2026-05-03):** Generative Agents (2304.03442) is the clearest early example of using LLM prompts to make *all* memory decisions — what is important enough to save, what to retrieve, and when to reflect. This is distinct from hardcoded heuristics. The upside: as the underlying LLM improves, memory quality improves automatically with no architectural changes. The downside identified in the paper itself: the approach was validated almost entirely in a social NPC simulation (Smallville, 25 agents), so generalization to other domains (task agents, coding assistants, multi-step planning) is still open.
+
+**How Generative Agents does LLM-driven memory:**
+- **Importance scoring**: an LLM prompt rates each observation on a 1–10 salience scale.
+- **Reflection trigger**: when accumulated importance scores cross a threshold, an LLM prompt generates higher-level insights from recent memories.
+- **Retrieval ranking**: a weighted combination of recency, importance (LLM-scored), and semantic relevance (embedding similarity) selects what enters the context.
+
+Everything that decides memory is expressed as a prompt, not code.
+
+**Recent work following this paradigm (2025–2026):**
+
+| Paper | Mechanism | Extension over Generative Agents |
+|---|---|---|
+| A-Mem (2502.12110) | LLM generates notes + links between memories dynamically | Adds explicit inter-memory linking via LLM prompts |
+| AgeMem | Exposes memory ops (store, retrieve, update, discard) as tool calls | Agent autonomously decides *when* to invoke each operation |
+| MemR3 (2512.20237) | LLM maintains an evidence-gap state over the interaction | Tracks not just what's stored but what's *missing* |
+| Agentic Memory (2601.01885) | LLM manages unified short- and long-term memory | Single prompt-driven pipeline without separate retrieval logic |
+| Reflective Memory Mgmt (ACL 2025) | Prospect + retrospect reflection loops for personalized dialogue | Generalizes Generative Agents' reflection to open-domain chat |
+
+**Why "scenario-specific" is a real limitation:**
+- Importance scoring via LLM prompts is sensitive to domain. A score calibrated for social gossip differs from one for technical task state.
+- Reflection quality depends on the LLM having enough background to draw meaningful abstractions from the episode.
+- The sandbox evaluation (fixed world, fixed agents) avoids many real problems: adversarial memory injection, privacy, conflicting beliefs from multiple users.
+
+**Open sub-questions in this direction:**
+- How to prompt-engineer importance scoring that transfers across domains without retuning?
+- Can reflection loops be made safe — i.e., not amplify model biases or hallucinate "lessons"?
+- How do tool-call-based memory systems (AgeMem) perform vs. implicit prompt-only systems (Generative Agents)?
+
 ## Open Questions
 - How should agents decide when to forget versus summarize?
 - How can memory provenance be made first-class in generation?

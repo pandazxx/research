@@ -30,6 +30,35 @@
    - URL: https://arxiv.org/abs/2603.07670
    - Why it matters: up-to-date survey synthesizing architectures, benchmarks, and open problems.
 
+## LLM-as-memory-manager direction (added 2026-05-03)
+8. A-Mem (2025). *Agentic Memory for LLM Agents.*
+   - URL: https://arxiv.org/abs/2502.12110
+   - Why it matters: LLM generates structured notes and dynamic inter-memory links; closest direct successor to Generative Agents' prompt-driven memory.
+
+9. Agentic Memory (2026). *Learning Unified Long-Term and Short-Term Memory Management for LLM Agents.*
+   - URL: https://arxiv.org/abs/2601.01885
+   - Why it matters: prompt-driven unified memory pipeline, no separate retrieval module.
+
+10. MemR3 (2025). *Memory Retrieval via Reflective Reasoning for LLM Agents.*
+    - URL: https://arxiv.org/abs/2512.20237
+    - Why it matters: tracks evidence gaps — what the agent still needs to know — as a first-class state alongside stored memories.
+
+11. Hindsight (2025). *Building Agent Memory that Retains, Recalls, and Reflects.*
+    - URL: https://arxiv.org/abs/2512.12818
+    - Why it matters: separates objective facts from subjective opinions; adds confidence-scored opinion evolution, reducing hallucinated "memories."
+
+12. Reflective Memory Management for Long-term Personalized Dialogue (ACL 2025).
+    - URL: https://aclanthology.org/2025.acl-long.413
+    - Why it matters: applies prospect + retrospect reflection loops to open-domain chat agents; directly generalizes Generative Agents' reflection.
+
+13. SSGM Framework (2026). *Governing Evolving Memory in LLM Agents: Risks, Mechanisms, and the Stability and Safety Governed Memory Framework.*
+    - URL: https://arxiv.org/abs/2603.11768
+    - Why it matters: safety and stability angle on LLM-driven memory; addresses adversarial injection and memory drift.
+
+14. MemAgents Workshop (ICLR 2026). *Memory for LLM-Based Agentic Systems.*
+    - URL: https://openreview.net/pdf?id=U51WxL382H
+    - Why it matters: community snapshot of open problems and emerging directions as of early 2026.
+
 ## Reliability / relevance notes
 - Priority given to primary sources (arXiv/ACL anthology) over blog summaries.
 - For very recent papers (2025–2026), validate claims against the PDF before citing specific numbers.
