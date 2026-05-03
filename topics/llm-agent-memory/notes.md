@@ -73,6 +73,70 @@ Why it matters: memory is the key mechanism enabling personalization, multi-sess
   - calibrated abstention when memory is uncertain,
   - downstream task success over long horizons.
 
+## Benchmark deep-dives
+
+### LoCoMo (2402.17753, ACL 2024)
+
+*What it is:* A dataset of very long-term conversations between two agents, grounded on personas and temporal event graphs, with human annotation for long-range consistency. Released set: 10 conversations.
+
+*Scale:* Each conversation ~300 turns, ~9K tokens, up to 35 sessions. ~1,500–2,000 QA pairs total.
+
+*Construction:* Machine-human pipeline. LLM agents generate dialogue grounded in pre-built persona profiles and event graphs (causal + temporal). Human annotators verify consistency and correct drift. Agents can share images — the dataset is multi-modal.
+
+*Tasks:*
+- QA: single-hop (one session), multi-hop (across sessions), temporal (ordering/timing), adversarial (misleading)
+- Event summarization: extract causal/temporal event graph from conversation history
+- Multi-modal dialogue generation: respond to ongoing dialogue using recalled past context including images
+
+*Metrics:* F1 / LLM-as-judge for QA; structured graph match for event summarization.
+
+*Limitations:*
+- Only 10 conversations released — small evaluation surface.
+- ~9K tokens per conversation is short by current standards (modern LLMs fit this in context with room to spare).
+- Social chit-chat domain; limited coverage of task/assistant scenarios.
+- Synthetic construction means language patterns may not match real user dialogues.
+
+### LongMemEval (2410.10813)
+
+*What it is:* 500 questions embedded in scalable synthetic user-assistant conversation histories. Designed to stress-test assistant-style agents rather than social agents.
+
+*Scale:* ~115K tokens per question in the standard setting. Conversation histories are "freely scalable" — lengths can be adjusted.
+
+*Construction:* Synthetic user-assistant turns generated to embed specific facts at specific points. Facts are planted; questions require finding and reasoning over them across sessions.
+
+*Five capabilities tested:*
+- Information extraction: recall a specific stated fact
+- Multi-session reasoning: combine facts from different sessions
+- Temporal reasoning: understand when something was true, changed, or expired
+- Knowledge updates: new info overrides old (the agent must prefer the latest)
+- Abstention: question is unanswerable from memory; agent should say so
+
+*Key finding:* Commercial assistants and long-context LLMs show ~30% accuracy drop compared to single-session baselines.
+
+*Metrics:* Accuracy (exact match or LLM-judge).
+
+*Limitations:*
+- Synthetic conversations — topically narrow, may not reflect real distribution of user memory events.
+- Fact-planting construction makes it easy to game with extraction heuristics.
+- No multi-modal content.
+- Abstention category is underweighted relative to real usage.
+
+### Comparison
+
+| Dimension | LoCoMo | LongMemEval |
+|---|---|---|
+| Format | Two-agent social dialogue | User-assistant |
+| Construction | Persona + event graph + human edit | Synthetic fact planting |
+| Scale (conversations) | 10 | 500 questions across scalable histories |
+| Context length | ~9K tokens / conv | ~115K tokens / question |
+| Multi-modal | Yes (images) | No |
+| Temporal reasoning | Yes | Yes |
+| Knowledge updates | No | Yes |
+| Abstention | No | Yes |
+| Domain | Social / personal | General assistant |
+
+*Shared limitation:* Both were designed when 32K context was the ceiling. With 1M+ context LLMs available now, a naive baseline of "just stuff everything in context" becomes a serious competitor to any memory system — and neither benchmark was designed to account for that. This weakens their usefulness as memory-system discriminators going forward.
+
 ## Practical takeaway for your study
 If you want to understand the field quickly, study in this order:
 1. Memory architecture primitives (stream, store, retrieve, reflect).

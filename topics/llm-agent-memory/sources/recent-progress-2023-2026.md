@@ -16,7 +16,11 @@
 ## Evaluation and recent developments
 4. LongMemEval (2024). *Benchmarking Chat Assistants on Long-Term Interactive Memory.*
    - URL: https://arxiv.org/abs/2410.10813
-   - Why it matters: measures multi-session extraction, reasoning, temporal updates, and abstention.
+   - Why it matters: measures multi-session extraction, reasoning, temporal updates, and abstention. User-assistant format; 500 questions; ~115K tokens per question. Limitation: synthetic, designed pre-1M-context-window era.
+
+4b. LoCoMo (2024, ACL). *Evaluating Very Long-Term Conversational Memory of LLM Agents.*
+    - URL: https://arxiv.org/abs/2402.17753
+    - Why it matters: social two-agent dialogue, multi-modal (images), grounded in persona + temporal event graphs, human-annotated. 10 conversations, ~300 turns, up to 35 sessions. Limitation: tiny released set, short by modern standards, no abstention task.
 
 5. Mao et al. (2025). *How Memory Management Impacts LLM Agents: An Empirical Study of Experience-Following Behavior.*
    - URL: https://arxiv.org/abs/2505.16067
