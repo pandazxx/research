@@ -106,10 +106,39 @@ Everything that decides memory is expressed as a prompt, not code.
 - Reflection quality depends on the LLM having enough background to draw meaningful abstractions from the episode.
 - The sandbox evaluation (fixed world, fixed agents) avoids many real problems: adversarial memory injection, privacy, conflicting beliefs from multiple users.
 
+**A-Mem (2502.12110) — reading notes (2026-05-03)**
+
+A-Mem fits the LLM-as-memory-manager direction well: the LLM generates structured notes per memory, dynamically links related memories as new ones arrive, and uses those links for retrieval. It is a closer match to Zettelkasten than Generative Agents' flat memory stream.
+
+Two open problems identified after reading:
+
+*1. Static embeddings are a long-term bottleneck.*
+A-Mem still relies on a fixed embedding model to map notes into vector space for similarity search. The embedding model does not adapt after deployment. Consequences:
+- Terminology drift: if the user's vocabulary or the agent's domain evolves, old memories encoded under earlier usage patterns may become harder to retrieve.
+- Concept granularity mismatch: general-purpose embeddings flatten domain-specific distinctions that matter for expert tasks.
+- The LLM-generated note text can evolve, but the vector representation of old notes is frozen at write time.
+
+Directions being explored:
+- *Chain-of-Memory (2601.14287)*: explicitly targets dynamic evolution of memory representations, triggering re-indexing as context shifts.
+- Re-embedding on retrieval (expensive but correct): re-encode old memories periodically or on-demand.
+- Avoid the embedding bottleneck entirely: use LLM-generated structured attributes (keywords, tags, links) as the primary retrieval key instead of dense vectors. A-Mem partially does this via its note structure.
+
+*2. Prompt engineering requires substantial effort and does not generalize.*
+A-Mem's memory writing, linking, and retrieval prompts are manually crafted and tuned for the benchmark tasks. Transferring to a new domain means retuning these prompts. The cost compounds because there are multiple interdependent prompts (write, link, retrieve, reflect).
+
+Relevant work on reducing this burden:
+- *AutoPDL (2504.04365)*: frames agent prompt selection as an AutoML problem; uses successive halving over a combinatorial space of prompting patterns and demonstrations. Reports 9–69pp accuracy gains across tasks and models.
+- *SICA / Evolving Excellence (2512.09108)*: agents that edit their own source prompts using an LLM to propose and evaluate modifications; 17–53% improvement on coding tasks.
+- *Self-generated in-context examples*: store successful trajectories as few-shot demonstrations for future runs; lifts performance without manual prompt work.
+
+None of these are memory-specific yet — applying automated prompt optimization to memory prompts (write policy, linking, reflection) is an open gap.
+
 **Open sub-questions in this direction:**
 - How to prompt-engineer importance scoring that transfers across domains without retuning?
 - Can reflection loops be made safe — i.e., not amplify model biases or hallucinate "lessons"?
 - How do tool-call-based memory systems (AgeMem) perform vs. implicit prompt-only systems (Generative Agents)?
+- Can automated prompt optimization (AutoPDL, SICA) be applied specifically to memory prompts?
+- Is there a retrieval strategy that avoids static embedding drift without requiring full re-indexing?
 
 ## Open Questions
 - How should agents decide when to forget versus summarize?

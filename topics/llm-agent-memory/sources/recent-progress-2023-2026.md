@@ -59,6 +59,19 @@
     - URL: https://openreview.net/pdf?id=U51WxL382H
     - Why it matters: community snapshot of open problems and emerging directions as of early 2026.
 
+## Addressing A-Mem open problems (added 2026-05-03)
+15. Chain-of-Memory (2026). *Lightweight Memory Construction with Dynamic Evolution for LLM Agents.*
+    - URL: https://arxiv.org/abs/2601.14287
+    - Why it matters: directly targets the static embedding bottleneck; triggers re-indexing as memory context shifts.
+
+16. AutoPDL (2025). *Automatic Prompt Optimization for LLM Agents.*
+    - URL: https://arxiv.org/abs/2504.04365
+    - Why it matters: AutoML-style search over prompting patterns and demonstrations; reduces manual prompt engineering burden. Not memory-specific, but directly applicable.
+
+17. SICA / Evolving Excellence (2025). *Automated Optimization of LLM-based Agents.*
+    - URL: https://arxiv.org/abs/2512.09108
+    - Why it matters: agents that rewrite their own prompts and heuristics via LLM-proposed edits; 17–53% gains on coding tasks.
+
 ## Reliability / relevance notes
 - Priority given to primary sources (arXiv/ACL anthology) over blog summaries.
 - For very recent papers (2025–2026), validate claims against the PDF before citing specific numbers.
