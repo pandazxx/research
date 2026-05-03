@@ -119,9 +119,18 @@ A-Mem still relies on a fixed embedding model to map notes into vector space for
 - The LLM-generated note text can evolve, but the vector representation of old notes is frozen at write time.
 
 Directions being explored:
-- *Chain-of-Memory (2601.14287)*: explicitly targets dynamic evolution of memory representations, triggering re-indexing as context shifts.
+- *Chain-of-Memory (2601.14287)*: does NOT solve the static embedding bottleneck — see correction note below.
 - Re-embedding on retrieval (expensive but correct): re-encode old memories periodically or on-demand.
 - Avoid the embedding bottleneck entirely: use LLM-generated structured attributes (keywords, tags, links) as the primary retrieval key instead of dense vectors. A-Mem partially does this via its note structure.
+
+*Chain-of-Memory (2601.14287) — corrected reading (2026-05-03)*
+
+The "dynamic evolution" claim is narrower than the name implies. Precise breakdown:
+- *Memory node*: `m = (text, timestamp, speaker_role, embedding)`. Extracted from a single conversation turn. Immutable after creation — content and embedding vector never change.
+- *"Dynamic evolution"*: refers to chain assembly at query time only. The algorithm expands from top-retrieved anchor nodes, selecting successors that satisfy both query relevance (fixed cosine similarity) and contextual coherence with the growing chain. The chain structure is different per query; the nodes themselves are static.
+- *Retrieval and ranking*: initial retrieval uses a fixed Qwen3-Embedding-8B with cosine similarity. Chain expansion adds a contextual consistency score (evolving chain embedding vs. candidate node). This is adaptive within a single query but nothing is persisted or retrained.
+
+*Conclusion*: Chain-of-Memory improves over flat top-k by reasoning about chain coherence at retrieval time, but it does not address embedding drift at all. Old memories encoded under earlier terminology cannot realign to new vocabulary without re-embedding. The static embedding bottleneck remains unsolved in this paper.
 
 *2. Prompt engineering requires substantial effort and does not generalize.*
 A-Mem's memory writing, linking, and retrieval prompts are manually crafted and tuned for the benchmark tasks. Transferring to a new domain means retuning these prompts. The cost compounds because there are multiple interdependent prompts (write, link, retrieve, reflect).
