@@ -135,7 +135,32 @@ Why it matters: memory is the key mechanism enabling personalization, multi-sess
 | Abstention | No | Yes |
 | Domain | Social / personal | General assistant |
 
-*Shared limitation:* Both were designed when 32K context was the ceiling. With 1M+ context LLMs available now, a naive baseline of "just stuff everything in context" becomes a serious competitor to any memory system — and neither benchmark was designed to account for that. This weakens their usefulness as memory-system discriminators going forward.
+### Other benchmarks
+
+*MSC — Multi-Session Chat (2107.07567, ACL 2022)*
+The original multi-session dialogue benchmark. Human-human crowdworker chats across 5 sessions, each up to 14 utterances, persona-grounded (built on top of PersonaChat). Sessions are separated by hours or days. Scale: relatively small by modern standards. Primary use: training and evaluating models that remember persona facts across sessions. Limitation: very short sessions, narrow persona domain, pre-LLM-agent era design — treated as legacy now but still used as a training corpus.
+
+*MemBench (2506.21605, ACL 2025 Findings)*
+Tests memory from two angles: *factual* (store and retrieve explicit facts) vs *reflective* (derive higher-level inferences from experience), and two interaction modes: *participation* (agent was in the conversation) vs *observation* (agent is reading a conversation it wasn't part of). More taxonomically careful than LongMemEval. Covers effectiveness, efficiency (latency/token cost), and capacity (scaling to large memory loads).
+
+*MemoryBench (2510.17281)*
+Focus: memory + continual learning together. Includes a user feedback simulation framework — the agent receives corrections and preferences and must update its behavior. Three modules: task provider, user simulator (generates human-like feedback), performance monitor. First benchmark to jointly evaluate memory recall and continual adaptation from feedback. Multi-domain, multi-language. Limitation: feedback simulation quality depends on the LLM used as simulator.
+
+*MemoryAgentBench (2507.05257, ICLR 2026)*
+Grounded in cognitive science. Tests four competencies: (1) accurate retrieval, (2) test-time learning (update beliefs mid-task), (3) long-range understanding (synthesize across distant events), (4) selective forgetting (discard stale or contradicted info). Built by reformatting existing long-context datasets into multi-turn incremental format plus newly constructed tasks. Key finding: no current memory agent masters all four — each method wins on some and fails on others.
+
+### Benchmark landscape at a glance
+
+| Benchmark | Year | Format | Sessions | Key strength | Key gap |
+|---|---|---|---|---|---|
+| MSC | 2022 | Human-human | 5 | First multi-session | Short, narrow, legacy |
+| LoCoMo | 2024 | Agent-agent | 35 | Event graphs, multi-modal | Only 10 convs, social domain |
+| LongMemEval | 2024 | User-assistant | Scalable | 5 capability types, abstention | Synthetic, pre-1M-ctx |
+| MemBench | 2025 | Various | Various | Factual vs reflective, participation vs observation | Newer, less adopted |
+| MemoryBench | 2025 | User-feedback | Continuous | Continual learning from feedback | Simulator quality varies |
+| MemoryAgentBench | 2026 | Multi-turn incremental | Incremental | Cognitively grounded, 4 competencies | No current method passes all 4 |
+
+*Shared limitation:* All were designed when 32K context was the ceiling. With 1M+ context LLMs available now, a naive baseline of "just stuff everything in context" becomes a serious competitor to any memory system — and none of these benchmarks was designed to account for that. This weakens their usefulness as memory-system discriminators going forward. The 2026-era benchmarks (MemoryAgentBench) are beginning to address this by testing capabilities that long-context stuffing genuinely cannot cover, like selective forgetting and test-time learning.
 
 ## Practical takeaway for your study
 If you want to understand the field quickly, study in this order:

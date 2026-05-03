@@ -63,6 +63,23 @@
     - URL: https://openreview.net/pdf?id=U51WxL382H
     - Why it matters: community snapshot of open problems and emerging directions as of early 2026.
 
+## Additional benchmarks (added 2026-05-03)
+18. MSC — Multi-Session Chat (2022, ACL). *Beyond Goldfish Memory: Long-Term Open-Domain Conversation.*
+    - URL: https://arxiv.org/abs/2107.07567
+    - Why it matters: original multi-session benchmark; human-human chats, 5 sessions, persona-grounded. Now legacy but still used as training corpus.
+
+19. MemBench (2025, ACL Findings). *Towards More Comprehensive Evaluation on the Memory of LLM-based Agents.*
+    - URL: https://arxiv.org/abs/2506.21605
+    - Why it matters: factual vs reflective memory × participation vs observation modes; also tests efficiency and capacity.
+
+20. MemoryBench (2025). *A Benchmark for Memory and Continual Learning in LLM Systems.*
+    - URL: https://arxiv.org/abs/2510.17281
+    - Why it matters: jointly evaluates memory recall and continual adaptation from user feedback; multi-domain, multi-language.
+
+21. MemoryAgentBench (2026, ICLR). *Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions.*
+    - URL: https://arxiv.org/abs/2507.05257
+    - Why it matters: cognitively grounded; tests 4 competencies (retrieval, test-time learning, long-range understanding, selective forgetting). No current method passes all four.
+
 ## Addressing A-Mem open problems (added 2026-05-03)
 15. Chain-of-Memory (2026). *Lightweight Memory Construction with Dynamic Evolution for LLM Agents.*
     - URL: https://arxiv.org/abs/2601.14287
