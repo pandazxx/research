@@ -114,6 +114,20 @@
     - URL: https://arxiv.org/abs/2509.09614
     - Why it matters: 8,000 scenarios from 10K to 1M tokens; diagnostic tool for context length degradation.
 
+## Graph-structured memory (added 2026-05-05)
+27. HippoRAG (2024, NeurIPS). *HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models.*
+    - URL: https://arxiv.org/abs/2405.14831
+    - Why it matters: RAG system modeled on hippocampal indexing; builds a KG of entities + propositions, retrieval traverses graph via Personalized PageRank instead of top-k vectors; better multi-hop and associative recall than dense retrieval.
+
+28. HippoRAG 2 (2025). *From RAG to Memory: Non-Parametric Continual Learning for Large Language Models.*
+    - URL: https://arxiv.org/abs/2502.14802
+    - Why it matters: extends HippoRAG with deeper passage integration and more effective online LLM use; outperforms standard RAG on factual, sense-making, and associative tasks; 7% gain on associative memory over state-of-the-art embedding models.
+
+## Production memory systems (added 2026-05-05)
+29. Mem0 (2025). *Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory.*
+    - URL: https://arxiv.org/abs/2504.19413
+    - Why it matters: deployed production memory layer; hybrid store (vector DB + graph DB); dynamically extracts, consolidates, and deduplicates salient facts via LLM; reports improvements over naive RAG on LongMemEval. Engineering-ahead-of-research reference point.
+
 ## Reliability / relevance notes
 - Priority given to primary sources (arXiv/ACL anthology) over blog summaries.
 - For very recent papers (2025–2026), validate claims against the PDF before citing specific numbers.
