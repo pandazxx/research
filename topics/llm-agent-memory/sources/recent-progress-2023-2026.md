@@ -83,7 +83,7 @@
 ## Addressing A-Mem open problems (added 2026-05-03)
 15. Chain-of-Memory (2026). *Lightweight Memory Construction with Dynamic Evolution for LLM Agents.*
     - URL: https://arxiv.org/abs/2601.14287
-    - Why it matters: directly targets the static embedding bottleneck; triggers re-indexing as memory context shifts.
+    - Why it matters: organizes retrieved fragments into coherent inference paths at query time and prunes noisy context. Important correction: its "dynamic evolution" refers to query-time chain construction, not persistent re-indexing or adaptive old embeddings.
 
 16. AutoPDL (2025). *Automatic Prompt Optimization for LLM Agents.*
     - URL: https://arxiv.org/abs/2504.04365

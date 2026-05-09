@@ -169,6 +169,49 @@ If you want to understand the field quickly, study in this order:
 3. Benchmarks and failure modes (especially temporal and contradiction errors).
 4. System trade-offs (quality vs latency vs privacy).
 
+## Study pass — synthesis (2026-05-09)
+
+### Core thesis
+LLM agent memory is moving from retrieval infrastructure toward **governed state management**. Vector search remains useful, but the frontier systems increasingly focus on the lifecycle around retrieval: deciding what becomes memory, enriching it with structure, detecting missing evidence, revising stale beliefs, and preventing memory corruption.
+
+### What the papers collectively show
+- **Generative Agents** remains the clean conceptual baseline: memory stream, LLM-scored importance, retrieval by recency/relevance/importance, and reflection. Its weakness is that the whole policy is domain-prompted and validated mainly in a social simulation.
+- **A-Mem** extends the baseline from a flat stream into a Zettelkasten-like note network. The important move is not just graph storage; it is LLM-mediated note writing, link creation, and attribute evolution.
+- **HippoRAG / HippoRAG 2** show why graph-structured retrieval matters: dense retrieval struggles when the answer requires associative or multi-hop integration across passages. Personalized PageRank over an LLM-built graph is a practical way to retrieve paths rather than isolated chunks.
+- **Mem0** is the production-oriented reference: hybrid vector + graph storage, extraction/consolidation/deduplication, and strong latency/cost claims against full-context baselines. It is useful because it frames memory as an always-on service layer rather than a benchmark-only method.
+- **MemR3** shifts attention from storage to retrieval control. Its evidence-gap tracker makes "what do we still need to know?" explicit, which helps avoid both under-retrieval and noisy over-retrieval.
+- **Hindsight** sharpens the epistemic design problem: agents should distinguish observed facts, experiences, neutral entity summaries, and evolving opinions/beliefs. This separation is a strong pattern for explainability and preference consistency.
+- **SSGM** names the main risk of the 2025-2026 direction: once memory can evolve, errors become persistent. Memory poisoning, semantic drift, procedural drift, and privacy leakage need governance before consolidation, not after.
+
+### Architectural pattern that seems strongest
+A robust memory agent should combine:
+1. append-only raw event log for provenance,
+2. extracted atomic facts/preferences with timestamps,
+3. structured links or graph edges for associative recall,
+4. synthesized summaries/beliefs kept separate from source facts,
+5. closed-loop retrieval that can ask for more evidence,
+6. governed consolidation with contradiction, sensitivity, and staleness checks.
+
+This is heavier than naive RAG, but it directly targets the failure modes that long-context stuffing and top-k vector retrieval leave unsolved.
+
+### Key unresolved problems
+- **Static embedding drift**: many "evolving memory" systems update text, links, or summaries while old embeddings remain fixed. Chain-of-Memory improves query-time chain construction, but does not persistently adapt old vectors.
+- **Prompt policy transfer**: importance scoring, write filters, link generation, and reflection prompts are still hand-designed. AutoPDL/SICA-style prompt optimization is relevant but not yet memory-specific.
+- **Trustworthy reflection**: reflections are useful compression, but they can hallucinate causal lessons or amplify early mistakes.
+- **Governed forgetting**: selective forgetting is still underdeveloped compared with remembering and retrieval.
+- **Benchmark pressure**: LoCoMo and LongMemEval are useful, but modern 1M+ context models make "full context" a stronger baseline. Future benchmarks need to test update correctness, forgetting, privacy boundaries, and long-lived state quality.
+
+### Personal research direction
+The most promising angle is not "better memory store" in isolation. It is a **memory policy layer** that treats writes and consolidations like database transactions:
+- proposed memory update,
+- evidence/provenance check,
+- conflict check against existing memory,
+- sensitivity and permission check,
+- TTL or decay assignment,
+- commit with audit trail.
+
+This would make memory systems easier to evaluate, debug, and trust in real assistants.
+
 ## LLM-as-memory-manager paradigm (focal research direction)
 
 **User observation (2026-05-03):** Generative Agents (2304.03442) is the clearest early example of using LLM prompts to make *all* memory decisions — what is important enough to save, what to retrieve, and when to reflect. This is distinct from hardcoded heuristics. The upside: as the underlying LLM improves, memory quality improves automatically with no architectural changes. The downside identified in the paper itself: the approach was validated almost entirely in a social NPC simulation (Smallville, 25 agents), so generalization to other domains (task agents, coding assistants, multi-step planning) is still open.
