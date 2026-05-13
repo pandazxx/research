@@ -267,3 +267,153 @@ The LLM-as-memory-manager paradigm (Generative Agents, A-Mem) has not been appli
 - How can memory provenance be made first-class in generation?
 - What is the right benchmark for real user personalization over months?
 - Can we align reflective memory without amplifying model biases?
+
+---
+
+## Training a model on top of a pre-trained LLM (added 2026-05-13)
+
+This section answers: *can you teach an LLM new things after it is already trained, and how?* This is directly relevant to memory because persistent learning from user interactions is essentially the same problem.
+
+### The core problem: catastrophic forgetting
+
+A neural network trained on new data tends to overwrite parameters that encoded old knowledge. This is called **catastrophic forgetting**. It is the central obstacle to any scheme that tries to update an LLM continuously from experience or user feedback.
+
+### Three major approaches
+
+#### 1. Full fine-tuning
+Train all of the model's billions of parameters on a new dataset. Most powerful but:
+- Requires enormous compute and memory (often multiple A100s).
+- Risks catastrophic forgetting of prior knowledge unless carefully regularised.
+- Not practical for per-user or per-session updates.
+
+#### 2. Parameter-efficient fine-tuning (PEFT) — the dominant approach in 2025
+Freeze the base model weights. Insert small trainable modules alongside existing layers. Only those new modules are updated.
+
+**LoRA (Low-Rank Adaptation)** is the canonical method:
+- Frozen weight matrix W (e.g. the query projection in an attention head).
+- Two tiny matrices A (d × r) and B (r × d) are injected alongside W, where rank r ≪ d (typically r = 8–64).
+- During fine-tuning only A and B are updated. The update applied to W is: ΔW = B·A.
+- At inference, B·A is merged into W with zero added latency.
+- Result: ~10,000× fewer trainable parameters than full fine-tuning of GPT-3 class models; fits on a single consumer GPU.
+
+**Variants:**
+- *QLoRA*: quantise the frozen base model to 4-bit, train LoRA adapters in 16-bit. Fits 65B parameter models on a single 48GB GPU.
+- *DoRA*: decomposes weight updates into magnitude and direction components for better fine-tuning quality.
+- *Spectrum*: selects which layers to fine-tune based on signal-to-noise ratio, further reducing wasted compute.
+
+**Key property for memory:** multiple task- or user-specific LoRA adapter sets can be trained on a shared frozen base and swapped at inference time. This is a practical architecture for per-user memory without model proliferation.
+
+#### 3. Mixture-of-Experts (MoE) expansion
+Rather than modifying existing weights at all, add new *expert* layers to the model. A learned router dispatches each token to the right subset of experts. Old experts stay frozen; new experts encode new knowledge.
+
+- Training a new "coding expert" module on top of a general LLM leaves the general knowledge intact.
+- **CL-MoE** (CVPR 2025): dual-momentum MoE for multimodal continual learning, uses dedicated LoRA expert per task plus a shared LoRA expert for common knowledge.
+- **MoE-CL**: combines MoE routing with LoRA experts for self-evolving continuous fine-tuning.
+- **Layer-wise allocation** (2025): calculates language similarity per layer and allocates more new experts to layers that show lower similarity between old and new domains — avoids blanket expert addition, which does not reliably improve performance.
+
+**Caveat:** adding experts increases inference cost (more parameters to route through) and requires careful router training to avoid load imbalance.
+
+#### 4. Self-distillation fine-tuning (SDFT) — MIT / ETH Zurich
+A newer approach (2025) that teaches the model from demonstrations *and* from its own experiments, leveraging in-context learning to avoid regression. The model essentially uses its own outputs as soft supervision. Shown to accumulate multiple skills without the performance oscillation seen in standard sequential fine-tuning.
+
+### Relevance to LLM agent memory
+
+| Problem in agent memory | Analogous fine-tuning concept |
+|---|---|
+| Learning user preferences without forgetting general capability | PEFT / LoRA: update small adapters, base stays frozen |
+| Supporting many users on one deployment | Adapter hot-swapping: one base model, per-user LoRA weights |
+| Accumulating domain expertise across tasks | MoE expansion: new expert per domain, old experts frozen |
+| Consolidating episodic experience into long-term skill | Self-distillation: model trains on its own successful trajectories |
+
+**Key open gap:** All current PEFT approaches assume periodic offline fine-tuning on a collected dataset. True *online* learning — updating adapter weights incrementally on each conversation turn — without catastrophic forgetting is still an unsolved research problem.
+
+### Practical summary (what to use today)
+1. Start with a frozen base model (e.g. Llama 3, Mistral, Qwen).
+2. Fine-tune LoRA adapters on your domain data (rank 8–64, target attention Q/V projections at minimum).
+3. For per-user personalization at scale: maintain per-user LoRA weight sets; merge on-the-fly at inference.
+4. For multi-domain expansion without forgetting: consider MoE-CL or CL-MoE architectures.
+5. Monitor forgetting with a held-out general capability evaluation set alongside your domain-specific eval.
+
+---
+
+## How the human brain memorises — layman explanation of 2025–2026 research (added 2026-05-13)
+
+### The basic story: wiring that changes
+
+Every memory is a pattern of connections between neurons (brain cells). When you experience something, certain neurons fire together. The connections (synapses) between those co-firing neurons get physically stronger — this is called **long-term potentiation (LTP)**. "Neurons that fire together, wire together" is the folk summary of this 70-year-old principle, still the foundation of memory neuroscience.
+
+**What is actually happening at the synapse:**
+- The sending neuron releases glutamate (a chemical signal).
+- The receiving neuron has AMPA receptors that detect it — this is moment-to-moment signalling.
+- If the signal is strong or repeated, NMDA receptors (which were previously blocked) open and allow calcium to flow in.
+- Calcium triggers a cascade: more AMPA receptors are inserted into the synapse, the synapse physically enlarges, and gene expression changes make the strengthening permanent.
+- BDNF (brain-derived neurotrophic factor) is a key molecule that consolidates LTP and promotes survival of the newly strengthened synapse.
+
+A 2025 Harvard study used advanced microscopy to watch these synaptic changes happening in real time — the first time the full structural reorganisation during memory formation was visualised at nanometre resolution.
+
+### Two-system architecture: fast and slow memory
+
+The brain does not store memories in one place. It uses two cooperating systems (the **Complementary Learning Systems** framework, supported by decades of evidence):
+
+**Hippocampus (fast learner, temporary store):**
+- Rapidly encodes new experiences in a sparse, distinct code — avoids blending new memories with old ones (pattern separation).
+- Stores the episode with its time and place metadata.
+- Think of it as RAM or a scratch pad.
+
+**Neocortex (slow learner, permanent store):**
+- Gradually extracts the *general pattern* across many similar episodes.
+- Stores compressed, generalised knowledge without the contextual details.
+- Think of it as the hard drive.
+
+The hippocampus is needed only temporarily. Once the neocortex has absorbed the pattern, a hippocampus-damaged patient can still use the old knowledge — they just cannot form new explicit memories.
+
+### Sleep is when the transfer happens
+
+During sleep, the hippocampus "replays" the day's experiences to the neocortex, reinforcing the synaptic patterns there. This is called **systems consolidation**.
+
+Recent 2025 research on the mechanics of sleep consolidation:
+
+- **NREM sleep (deep, dreamless):** Hippocampus and neocortex are tightly coupled. The hippocampus broadcasts "sharp-wave ripples" — compressed replays of recent experiences — to the cortex. The cortex uses these to strengthen its own representation. Larger sharp-wave ripples correlate with better next-day recall (2025 PubMed finding).
+- **REM sleep (dreaming):** Hippocampal influence on the cortex is reduced. The neocortex is relatively free to "explore" and recombine existing memories, which supports creativity and the integration of temporally separated events.
+- Alternating NREM → REM cycles across the night are what allow graceful accumulation of knowledge without overwriting earlier learning.
+
+**Key 2025 finding on overnight learning:** Sleep itself does not boost *new* learning capacity the next day (contradicting some older claims), but it firmly consolidates what was learned *before* sleep, freeing hippocampal capacity.
+
+### Molecular timers: how the brain decides what to keep
+
+A 2025 study (reported by MedicalXpress / ScienceDaily) identified a sequence of molecular "timers" that operate across different brain regions at different time scales:
+- Immediately after an experience, short-lived molecular signals mark a synapse as "candidate for consolidation."
+- Over hours, the thalamus and cortex evaluate whether the experience was important (novel? emotionally significant? repeatedly encountered?).
+- Only memories that pass these evaluations receive the full protein-synthesis-dependent structural change that makes them permanent.
+
+This is the biological equivalent of a **write policy** in agent memory: not everything is stored long-term; the brain has an active filtering mechanism based on salience and repetition.
+
+### What makes memories last versus fade
+
+Recent ScienceDaily research (Nov 2025): a memory is more likely to last a lifetime if:
+1. **Emotional significance** — the amygdala (emotion centre) boosts consolidation by signalling importance to the hippocampus.
+2. **Novelty** — unexpected events trigger dopamine release, which strengthens LTP.
+3. **Repetition / spaced retrieval** — reactivating a memory re-consolidates it, making it stronger each time (reconsolidation).
+4. **Sleep** — without sleep after encoding, consolidation is incomplete.
+
+Forgetting is not failure; it is partly *active*. Inhibitory mechanisms prune weak or irrelevant synapses to prevent memory overload — the biological equivalent of garbage collection.
+
+### Reversing memory loss (2025 frontier)
+
+- **Virginia Tech / CRISPR (Oct 2025):** Memory loss in aging rats reversed by CRISPR editing in the hippocampus and amygdala, correcting molecular disruptions (excess inhibitory enzyme activity) that had suppressed LTP. Demonstrates that some age-related memory loss is mechanistically specific and potentially reversible, not just neurodegeneration.
+- **Molecular timer targeting:** If the thalamo-cortical timer cascade can be modulated pharmacologically, there may be a window to selectively strengthen memories shortly after encoding — relevant for PTSD (erasing), learning disabilities (enhancing), and dementia (slowing loss).
+
+### The connection to LLM memory research
+
+| Brain mechanism | LLM agent memory analogue |
+|---|---|
+| Hippocampus: rapid sparse encoding | External episodic memory store (vector DB, event log) |
+| Neocortex: slow generalised learning | Base model weights or fine-tuned adapter |
+| Sharp-wave ripple replay during sleep | Offline reflection / consolidation loop (Generative Agents, A-Mem) |
+| Molecular salience filter (thalamus/cortex) | LLM importance scoring (1–10 salience in Generative Agents) |
+| Synaptic pruning / forgetting | TTL expiry, contradiction handling, selective forgetting (MemoryAgentBench) |
+| Reconsolidation on retrieval | Memory update-on-access (each retrieval refreshes the record) |
+
+The brain's two-system architecture is exactly the design intuition behind hierarchical agent memory: fast, specific episodic store + slow, generalised model knowledge. The open challenge in both domains is the same — how to transfer the right things from the fast store to the slow one without overwriting what is already there.
+
+---
