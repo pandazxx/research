@@ -289,7 +289,7 @@ Train all of the model's billions of parameters on a new dataset. Most powerful 
 #### 2. Parameter-efficient fine-tuning (PEFT) — the dominant approach in 2025
 Freeze the base model weights. Insert small trainable modules alongside existing layers. Only those new modules are updated.
 
-**LoRA (Low-Rank Adaptation)** is the canonical method:
+**LoRA (Low-Rank Adaptation)** is the canonical method (Hu et al., 2021 — https://arxiv.org/abs/2106.09685):
 - Frozen weight matrix W (e.g. the query projection in an attention head).
 - Two tiny matrices A (d × r) and B (r × d) are injected alongside W, where rank r ≪ d (typically r = 8–64).
 - During fine-tuning only A and B are updated. The update applied to W is: ΔW = B·A.
@@ -297,7 +297,7 @@ Freeze the base model weights. Insert small trainable modules alongside existing
 - Result: ~10,000× fewer trainable parameters than full fine-tuning of GPT-3 class models; fits on a single consumer GPU.
 
 **Variants:**
-- *QLoRA*: quantise the frozen base model to 4-bit, train LoRA adapters in 16-bit. Fits 65B parameter models on a single 48GB GPU.
+- *QLoRA* (Dettmers et al., 2023 — https://arxiv.org/abs/2305.14314): quantise the frozen base model to 4-bit, train LoRA adapters in 16-bit. Fits 65B parameter models on a single 48GB GPU.
 - *DoRA*: decomposes weight updates into magnitude and direction components for better fine-tuning quality.
 - *Spectrum*: selects which layers to fine-tune based on signal-to-noise ratio, further reducing wasted compute.
 
@@ -307,14 +307,14 @@ Freeze the base model weights. Insert small trainable modules alongside existing
 Rather than modifying existing weights at all, add new *expert* layers to the model. A learned router dispatches each token to the right subset of experts. Old experts stay frozen; new experts encode new knowledge.
 
 - Training a new "coding expert" module on top of a general LLM leaves the general knowledge intact.
-- **CL-MoE** (CVPR 2025): dual-momentum MoE for multimodal continual learning, uses dedicated LoRA expert per task plus a shared LoRA expert for common knowledge.
-- **MoE-CL**: combines MoE routing with LoRA experts for self-evolving continuous fine-tuning.
+- **CL-MoE** (CVPR 2025 — https://arxiv.org/abs/2503.00413): dual-momentum MoE for multimodal continual learning, uses dedicated LoRA expert per task plus a shared LoRA expert for common knowledge.
+- **MoE-CL** (https://arxiv.org/abs/2509.18133): combines MoE routing with LoRA experts for self-evolving continuous fine-tuning.
 - **Layer-wise allocation** (2025): calculates language similarity per layer and allocates more new experts to layers that show lower similarity between old and new domains — avoids blanket expert addition, which does not reliably improve performance.
 
 **Caveat:** adding experts increases inference cost (more parameters to route through) and requires careful router training to avoid load imbalance.
 
 #### 4. Self-distillation fine-tuning (SDFT) — MIT / ETH Zurich
-A newer approach (2025) that teaches the model from demonstrations *and* from its own experiments, leveraging in-context learning to avoid regression. The model essentially uses its own outputs as soft supervision. Shown to accumulate multiple skills without the performance oscillation seen in standard sequential fine-tuning.
+A newer approach (2026 — https://arxiv.org/abs/2601.19897) that teaches the model from demonstrations *and* from its own experiments, leveraging in-context learning to avoid regression. The model essentially uses its own outputs as soft supervision. Shown to accumulate multiple skills without the performance oscillation seen in standard sequential fine-tuning.
 
 ### Relevance to LLM agent memory
 
@@ -334,6 +334,8 @@ A newer approach (2025) that teaches the model from demonstrations *and* from it
 4. For multi-domain expansion without forgetting: consider MoE-CL or CL-MoE architectures.
 5. Monitor forgetting with a held-out general capability evaluation set alongside your domain-specific eval.
 
+**Survey:** Continual Learning of Large Language Models — https://arxiv.org/abs/2404.16789
+
 ---
 
 ## How the human brain memorises — layman explanation of 2025–2026 research (added 2026-05-13)
@@ -349,7 +351,7 @@ Every memory is a pattern of connections between neurons (brain cells). When you
 - Calcium triggers a cascade: more AMPA receptors are inserted into the synapse, the synapse physically enlarges, and gene expression changes make the strengthening permanent.
 - BDNF (brain-derived neurotrophic factor) is a key molecule that consolidates LTP and promotes survival of the newly strengthened synapse.
 
-A 2025 Harvard study used advanced microscopy to watch these synaptic changes happening in real time — the first time the full structural reorganisation during memory formation was visualised at nanometre resolution.
+A 2025 Harvard study used advanced microscopy to watch these synaptic changes happening in real time — the first time the full structural reorganisation during memory formation was visualised at nanometre resolution (https://www.chemistry.harvard.edu/news/2025/05/new-research-tracking-precisely-how-learning-memories-are-formed).
 
 ### Two-system architecture: fast and slow memory
 
@@ -373,7 +375,7 @@ During sleep, the hippocampus "replays" the day's experiences to the neocortex, 
 
 Recent 2025 research on the mechanics of sleep consolidation:
 
-- **NREM sleep (deep, dreamless):** Hippocampus and neocortex are tightly coupled. The hippocampus broadcasts "sharp-wave ripples" — compressed replays of recent experiences — to the cortex. The cortex uses these to strengthen its own representation. Larger sharp-wave ripples correlate with better next-day recall (2025 PubMed finding).
+- **NREM sleep (deep, dreamless):** Hippocampus and neocortex are tightly coupled. The hippocampus broadcasts "sharp-wave ripples" — compressed replays of recent experiences — to the cortex. The cortex uses these to strengthen its own representation. Larger sharp-wave ripples correlate with better next-day recall (Robinson et al., Neuron 2026 — https://doi.org/10.1016/j.neuron.2025.10.003).
 - **REM sleep (dreaming):** Hippocampal influence on the cortex is reduced. The neocortex is relatively free to "explore" and recombine existing memories, which supports creativity and the integration of temporally separated events.
 - Alternating NREM → REM cycles across the night are what allow graceful accumulation of knowledge without overwriting earlier learning.
 
@@ -381,7 +383,7 @@ Recent 2025 research on the mechanics of sleep consolidation:
 
 ### Molecular timers: how the brain decides what to keep
 
-A 2025 study (reported by MedicalXpress / ScienceDaily) identified a sequence of molecular "timers" that operate across different brain regions at different time scales:
+A 2025 study identified a sequence of molecular "timers" that operate across different brain regions at different time scales (Rajasethupathy lab, Nature Nov 2025 — https://doi.org/10.1038/s41586-025-09774-6):
 - Immediately after an experience, short-lived molecular signals mark a synapse as "candidate for consolidation."
 - Over hours, the thalamus and cortex evaluate whether the experience was important (novel? emotionally significant? repeatedly encountered?).
 - Only memories that pass these evaluations receive the full protein-synthesis-dependent structural change that makes them permanent.
@@ -400,7 +402,7 @@ Forgetting is not failure; it is partly *active*. Inhibitory mechanisms prune we
 
 ### Reversing memory loss (2025 frontier)
 
-- **Virginia Tech / CRISPR (Oct 2025):** Memory loss in aging rats reversed by CRISPR editing in the hippocampus and amygdala, correcting molecular disruptions (excess inhibitory enzyme activity) that had suppressed LTP. Demonstrates that some age-related memory loss is mechanistically specific and potentially reversible, not just neurodegeneration.
+- **Virginia Tech / CRISPR (Oct 2025 — https://news.vt.edu/articles/2025/10/cals-jarome-improving-memory.html):** Memory loss in aging rats reversed by CRISPR editing in the hippocampus and amygdala, correcting molecular disruptions (excess inhibitory enzyme activity) that had suppressed LTP. Demonstrates that some age-related memory loss is mechanistically specific and potentially reversible, not just neurodegeneration.
 - **Molecular timer targeting:** If the thalamo-cortical timer cascade can be modulated pharmacologically, there may be a window to selectively strengthen memories shortly after encoding — relevant for PTSD (erasing), learning disabilities (enhancing), and dementia (slowing loss).
 
 ### The connection to LLM memory research
