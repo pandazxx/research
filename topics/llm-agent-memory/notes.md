@@ -419,3 +419,84 @@ Forgetting is not failure; it is partly *active*. Inhibitory mechanisms prune we
 The brain's two-system architecture is exactly the design intuition behind hierarchical agent memory: fast, specific episodic store + slow, generalised model knowledge. The open challenge in both domains is the same — how to transfer the right things from the fast store to the slow one without overwriting what is already there.
 
 ---
+
+## Does LoRA work on closed-weight models like Claude Opus? (added 2026-05-14)
+
+**Short answer:** No. LoRA training fundamentally requires access to the base model's weight tensors.
+
+### Why weight access is required
+The LoRA forward pass is `h = Wx + (α/r)·BAx`. Two things require the actual `W` tensor on hardware you control:
+1. Computing the loss requires running the full frozen `W` to get the model's output.
+2. The backward pass propagates gradients *through* `W` to compute updates for the trainable adapters `A` and `B`.
+
+A black-box API gives only final text output — no intermediate activations, no gradients, no weights. LoRA cannot run on top of that.
+
+### Status of major closed models (May 2026)
+
+| Model | Direct LoRA possible? | What is offered |
+|---|---|---|
+| Claude (Opus / Sonnet / Haiku) | No | No public fine-tuning of any kind. Anthropic offers Memory features and prompt caching, but no weight-level customisation. |
+| GPT-4 / GPT-4o | Indirectly (managed) | OpenAI runs LoRA-style fine-tuning on their servers. You upload data, get a fine-tuned endpoint. Never see weights. |
+| Gemini | Indirectly (managed) | Google offers managed fine-tuning through Vertex AI; same pattern as OpenAI. |
+| Llama / Mistral / Qwen / DeepSeek / Gemma | Yes, directly | Open weights — download, freeze the base, train LoRA adapters locally. |
+
+### Practical alternatives for personalising a closed model
+1. **Managed fine-tuning** (OpenAI/Google only). Closest to LoRA in spirit; you pay per training token and the adapter is locked to the vendor.
+2. **Long context + RAG.** Push memory into the prompt at inference time. No training. This is what most current "memory" features on Claude and ChatGPT actually do.
+3. **Prompt-side learning.** Curate in-context examples or a system prompt that evolves over time.
+4. **Distillation.** Use the closed model to generate training data, then LoRA-train an open model on that data. Gets a personalisable model that mimics the closed one.
+5. **Black-box prompt optimisation** — see next section. Treat the closed model as a fixed function and learn *prompts* via gradient-free search using only API outputs.
+
+### Implication for agent memory
+The LoRA-based personalisation story (PEFT, adapter hot-swapping, MoE-CL) applies only to open-weight models. For closed models the equivalent is currently *retrieval-augmented memory* — which is why nearly every Claude/GPT memory feature shipping in 2025–2026 is built on RAG rather than on weight updates.
+
+---
+
+## Black-box prompt optimisation — research direction to study (added 2026-05-14)
+
+If you cannot touch the model weights, the next-best handle for adaptation is the *prompt*. Black-box prompt optimisation (BPO) treats the closed LLM as a fixed function and searches over the input text space using only the model's API outputs — no gradients, no weight access, no logits required.
+
+### Why it matters for memory
+Most LLM agent memory systems already lean heavily on prompts: the LLM-as-memory-manager paradigm (Generative Agents, A-Mem) expresses *everything* — importance scoring, retrieval ranking, reflection — as prompts. The quality of those prompts dominates system behaviour, and they are currently hand-tuned. Automated black-box optimisation of memory-management prompts is an underexplored gap in the field.
+
+### Four main families of methods
+
+#### 1. Sampling + selection (the original APE family)
+- **APE — Automatic Prompt Engineer** (Zhou et al., 2022 — https://arxiv.org/abs/2211.01910). Use an LLM to *propose* candidate instructions, score each on a small validation set, keep the best. Roughly Monte-Carlo over the prompt space. Reaches human-level prompt quality on instruction-following benchmarks. First convincing demonstration that LLMs can write better prompts than humans.
+
+#### 2. Evolutionary / population-based
+- **EvoPrompt** (Guo et al., 2023 — https://arxiv.org/abs/2309.08532). Apply genetic algorithms: maintain a population of prompts, crossover and mutate them via LLM calls, select on validation score. Connects LLMs with classical evolutionary computation.
+- **PromptBreeder** (Fernando et al., 2023 — https://arxiv.org/abs/2309.16797). Self-referential variant: the LLM also evolves the *mutation prompts*, not just the task prompts. Diversity-maintenance heuristics prevent collapse.
+
+#### 3. LLM-as-optimiser (gradient-free analogue)
+- **OPRO — Optimization by PROmpting** (Yang et al., Google DeepMind, 2023 — https://arxiv.org/abs/2309.03409). At each step, the LLM is shown previous prompts and their scores, then asked to propose a better prompt. The LLM itself is the optimiser; trajectory of (prompt, score) pairs is the only state. Effective on small-scale optimisation including prompt search.
+- **Language Models as Black-Box Optimizers for Vision-Language Models** (CVPR 2024). Same principle applied to VLMs — LLM proposes prompts, target model scores them, no gradients involved.
+
+#### 4. Structured / programmatic frameworks
+- **DSPy** (Stanford NLP, ongoing — https://dspy.ai/, https://github.com/stanfordnlp/dspy). Reframes prompting as Python programs over typed *Signatures* and *Modules*. Provides optimisers (BootstrapFewShot, MIPROv2, etc.) that compile the program by searching over instructions and few-shot demonstrations. The current de facto standard for serious prompt optimisation work; supports both open and closed models.
+- **BPO — Black-Box Prompt Optimization** (Cheng et al., ACL 2024 — https://arxiv.org/abs/2311.04155). Trains a small open-source *prompt optimiser model* that rewrites user prompts into better aligned ones. Reports 8.8–22.0% win-rate gains across GPT-3.5, GPT-4, Claude-2, Llama-2-chat, Vicuna.
+- **AutoPDL** (2025 — https://arxiv.org/abs/2504.04365). AutoML-style successive-halving over the combinatorial space of prompting patterns and demonstrations. 9–69pp accuracy gains.
+- **SICA / Evolving Excellence** (2025 — https://arxiv.org/abs/2512.09108). Agents that edit their own source prompts; 17–53% gains on coding tasks.
+
+### What is hard about it
+- **Cost.** Every candidate prompt needs API calls to score. Search budgets blow up fast on closed models.
+- **Noise.** LLM outputs are stochastic — the same prompt scored twice will give different results. Need robust averaging.
+- **Validation set design.** Without a good held-out scoring set, you overfit to noise and pick prompts that happen to look good on the search examples.
+- **Transferability.** A prompt optimised for GPT-4 often does not transfer to Claude — each model has different idiosyncrasies. BPO-style learned rewriters partly address this but not fully.
+
+### Open questions especially relevant to agent memory
+1. Can black-box prompt optimisation be applied specifically to *memory-management prompts* (write policy, importance scoring, reflection)? No published work has tried this directly.
+2. How to optimise prompts *online* as the agent runs, rather than offline once on a validation set? Memory prompts in deployed agents see distribution shift; a fixed optimised prompt drifts.
+3. Can the optimisation loop itself be made memory-aware — learning which prompt variants worked for which kinds of users / tasks, and routing accordingly?
+4. What is the right *evaluation function* for a memory-management prompt? Downstream task success is sparse; a richer per-prompt reward signal is the bottleneck.
+
+### Surveys to read first
+- **A Systematic Survey of Automatic Prompt Optimization Techniques** (2025 — https://arxiv.org/abs/2502.16923). Comprehensive overview of the field, taxonomies, evaluation methodology.
+
+### Suggested study order
+1. APE (2211.01910) — establishes the basic paradigm.
+2. OPRO (2309.03409) — establishes LLM-as-optimiser.
+3. DSPy docs + MIPROv2 paper — practical state of the art.
+4. BPO (2311.04155) — the closed-model alignment angle.
+5. The 2025 survey (2502.16923) for breadth.
+6. Then attempt: apply DSPy/MIPROv2 to a memory-management prompt (e.g. Generative Agents' importance scorer) and measure whether it transfers across domains.
