@@ -39,38 +39,47 @@ The mechanism being implemented (reconsolidation / active forgetting) is biologi
 ### Goal
 Stop researching, start operating publicly. Lock in the direction. Build the lowest-stakes possible version of the mechanism to confirm the approach.
 
-### Month 1 — Direction & public setup
+### Month 1 — Setup, warmup reproductions, direction decision
+
+The first month has a deliberate structure: **public setup → two warmup reproductions → direction decision**. The warmup is both practice (learning the reproduction workflow and tooling) and informational (you learn things from running real baselines that change how you'd choose between candidate directions). Either way the work is not wasted: one of the warmup baselines is likely to also be the official baseline for the chosen direction.
 
 #### Week 1 — Public setup (direction-agnostic)
 - [ ] Personal blog set up (Substack, Hashnode, or self-hosted).
 - [ ] GitHub repo created. Private for this week, public by end of week 2.
 - [ ] Initial repo scaffold: README placeholder, LICENSE (MIT), .gitignore, pyproject.toml.
 - [ ] Tentative project name (can change once direction is decided).
-- [ ] Read 2–3 papers from *each* candidate direction (reconsolidation + active forgetting) to inform the Week 2 decision.
+- [ ] Read 2–3 papers from *each* candidate direction (reconsolidation + active forgetting) to inform the warmup and direction decision.
+- [ ] Pick the two baseline papers you will reproduce as warmup. Recommended pairing: one closer to candidate direction A (e.g. Mem0 or HippoRAG), one closer to candidate direction B (e.g. A-Mem). Document the choice in `docs/warmup.md`.
 
-#### Week 2 — Direction decision + go public
-- [ ] **Binary direction decision: reconsolidation or active competitive forgetting.** Friday deadline. No backtracking after this week.
-- [ ] Project name finalised based on direction.
+#### Week 2 — Go public + warmup reproduction #1
 - [ ] **First blog post published:** "A Survey of LLM Agent Memory Research (2023–2026)". Use existing notes as the basis. Target ~3000 words.
 - [ ] Repo made public with placeholder README explaining the goal.
 - [ ] File one comment/issue on each of: Mem0, Letta, A-Mem, HippoRAG, DSPy. Just establish that you exist in those communities.
+- [ ] **Warmup reproduction #1**: get the first chosen baseline running end-to-end on a small slice (10–20 examples) of MemoryAgentBench or LongMemEval. The goal is *running*, not *matching published numbers* — that comes later.
+- [ ] Log learnings in `docs/warmup.md`: what was easy, what was hard, what the codebase quality is like, what would need to change for a deeper reproduction.
+
+#### Week 3 — Warmup reproduction #2 + direction decision
+- [ ] **Warmup reproduction #2**: get the second baseline running on the same small slice. Same goal — just running.
+- [ ] Update `docs/warmup.md` with the second baseline's learnings.
+- [ ] **Direction decision (end of Friday): reconsolidation or active competitive forgetting.** The warmup should now have given you concrete signal:
+  - which codebase / approach is easier to build on,
+  - which mechanism would be more naturally expressed in the existing tooling,
+  - whether either candidate direction faces an obvious blocker.
+- [ ] Project name finalised based on direction.
 - [ ] Design doc started in `docs/design.md` — one paragraph describing the chosen mechanism, that's enough for now.
 
-#### Week 3 — Reproduction target
-- [ ] Pick the *one baseline paper to reproduce*. Recommended candidates: Mem0, A-Mem, HippoRAG.
-- [ ] Set up local dev environment: which LLM API, embedding API, benchmark scoring harness.
-- [ ] Get the baseline running end-to-end on a small slice (10–20 examples) of MemoryAgentBench or LongMemEval. Numbers don't have to match published yet.
-
-#### Week 4 — Baseline numbers
-- [ ] Full reproduction of the chosen baseline on a meaningful slice of the benchmark.
+#### Week 4 — Commit to full reproduction
+- [ ] Decide which of the two warmup baselines becomes the *official* baseline for the project. Most often it will be the one aligned with the chosen direction, but the engineering quality observation from warmup can override that.
+- [ ] Begin full reproduction of the chosen official baseline on a meaningful slice of the benchmark.
 - [ ] Numbers logged in a public experiment log (a simple CSV in the repo is fine).
 - [ ] Repo README updated with what's there and what's coming.
 
 **Month 1 checkpoint (end of week 4):**
 - ✓ Public blog with at least 1 post
 - ✓ Public repo with running code
+- ✓ Two warmup reproductions running (even if rough)
 - ✓ Direction chosen and committed
-- ✓ First benchmark numbers (even if just baseline)
+- ✓ Official baseline picked, full reproduction underway
 
 If any of these are missing, the discipline-collapse risk is already materialising. Don't move to month 2 until they're done.
 
@@ -244,8 +253,9 @@ Stop building. Start polishing, documenting, and getting the work seen and used.
 | Phase | Metric | Threshold |
 |---|---|---|
 | Foundation | First blog post published | Yes/no |
-| Foundation | Baseline reproduced | Within ~5% of published |
-| Foundation | Direction commitment | Yes/no, locked by end of week 1 |
+| Foundation | Warmup reproductions | 2 baselines running on a small slice by end of week 3 |
+| Foundation | Direction commitment | Yes/no, locked by end of week 3 (informed by warmup) |
+| Foundation | Official baseline reproduced | Within ~5% of published by end of month 2 |
 | Foundation | Variants benchmarked | 3+ by end of month 3 |
 | Foundation | Kill/pivot gate honoured | Yes/no — pivots happen if signal absent |
 | Build | Number of blog posts | 5+ by end of month 6 |
@@ -271,6 +281,7 @@ Stop building. Start polishing, documenting, and getting the work seen and used.
 | Big company ships a similar feature | Medium | Medium | Differentiate on engineering quality + benchmark rigour, not just novelty. Even if commoditised, a well-engineered reference implementation has value. |
 | Burnout | Medium | High | Take 1 full week off every 2 months. The blog cadence helps — visible incremental progress is psychologically protective. |
 | Benchmark contamination | Low | High | If using an LLM that was trained on the benchmark, note this explicitly. Use held-out splits where available. |
+| Warmup reproductions take much longer than 1 week each | Medium | Medium | Scope the warmup explicitly to "small slice, just running" — not "matching published numbers." If a warmup is genuinely stuck after 5 days, abandon that baseline and pick another; document why in `docs/warmup.md`. |
 
 ---
 
@@ -299,16 +310,17 @@ Stop building. Start polishing, documenting, and getting the work seen and used.
 **By end of Week 1:**
 - [ ] **Blog platform:** Substack vs Hashnode vs self-hosted.
 - [ ] **Tentative project name** (can revise after direction is chosen).
-
-**By end of Week 2:**
-- [ ] **Project focus:** reconsolidation OR active competitive forgetting.
-- [ ] **Final project name.**
+- [ ] **Two warmup baseline papers**, one closer to each candidate direction.
+- [ ] **Primary benchmark for the warmup small slice**: MemoryAgentBench (recommended) or LongMemEval.
+- [ ] **Primary base LLM**: Claude, GPT-4, or open-weight (Llama 3 via Together/Replicate). Used for both warmup reproductions.
+- [ ] **Primary embedding model**: OpenAI text-embedding-3-large or Voyage-3-large (see embeddings deep-dive).
 
 **By end of Week 3:**
-- [ ] **Primary benchmark:** MemoryAgentBench (recommended) or alternative.
-- [ ] **Reproduction target:** Mem0, A-Mem, or HippoRAG.
-- [ ] **Primary base LLM:** Claude, GPT-4, or open-weight (Llama 3 via Together/Replicate).
-- [ ] **Primary embedding model:** OpenAI text-embedding-3-large or Voyage-3-large (see embeddings deep-dive).
+- [ ] **Project focus:** reconsolidation OR active competitive forgetting. Informed by what the warmup reproductions revealed.
+- [ ] **Final project name.**
+
+**By end of Week 4:**
+- [ ] **Official baseline for the full reproduction.** Usually one of the two warmup baselines; may be a third paper if the warmup revealed both candidates have blockers.
 
 ---
 
