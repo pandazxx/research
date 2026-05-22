@@ -128,6 +128,65 @@
     - URL: https://arxiv.org/abs/2504.19413
     - Why it matters: deployed production memory layer; hybrid store (vector DB + graph DB); dynamically extracts, consolidates, and deduplicates salient facts via LLM; reports improvements over naive RAG on LongMemEval. Engineering-ahead-of-research reference point.
 
+## Training on top of LLMs — PEFT, continual learning (added 2026-05-13)
+30. Hu et al. (2021, ICLR 2022). *LoRA: Low-Rank Adaptation of Large Language Models.*
+    - URL: https://arxiv.org/abs/2106.09685
+    - PDF: papers/2106.09685-lora.pdf
+    - Why it matters: the canonical PEFT method. Freezes base model; injects low-rank adapter matrices A and B into attention layers; 10,000× fewer trainable parameters than full fine-tuning of GPT-3; zero added inference latency after merging. Foundation for all adapter-based memory personalisation approaches.
+
+31. Dettmers et al. (2023, NeurIPS). *QLoRA: Efficient Finetuning of Quantized LLMs.*
+    - URL: https://arxiv.org/abs/2305.14314
+    - PDF: papers/2305.14314-qlora.pdf
+    - Why it matters: quantises the frozen base model to 4-bit (NF4), trains LoRA adapters in 16-bit. Enables fine-tuning of 65B-parameter models on a single 48GB GPU. Practical enabler for per-user adapter training without enterprise hardware.
+
+32. Shenfeld et al. (2026). *Self-Distillation Enables Continual Learning (SDFT).*
+    - URL: https://arxiv.org/abs/2601.19897
+    - PDF: papers/2601.19897-sdft.pdf
+    - Authors: MIT / Improbable AI Lab / ETH Zurich
+    - Why it matters: uses the model's own in-context learning ability to generate on-policy training signal; accumulates multiple skills sequentially without catastrophic forgetting or performance oscillation seen in standard SFT.
+
+33. Huai et al. (2025, CVPR). *CL-MoE: Enhancing Multimodal LLM with Dual Momentum Mixture-of-Experts for Continual Visual Question Answering.*
+    - URL: https://arxiv.org/abs/2503.00413
+    - PDF: papers/2503.00413-cl-moe.pdf
+    - Why it matters: dual-router MoE (task-level + instance-level) + dedicated LoRA expert per task + shared LoRA expert for common knowledge. Concrete architecture for expanding an LLM with new domain experts while protecting old ones.
+
+34. (2025). *Self-Evolving LLMs via Continual Instruction Tuning (MoE-CL).*
+    - URL: https://arxiv.org/abs/2509.18133
+    - PDF: papers/2509.18133-moe-cl-self-evolving.pdf
+    - Why it matters: adversarial Mixture-of-LoRA-Experts for self-evolving continuous learning; parameter independence via dedicated LoRA experts; common knowledge via shared LoRA expert; directly addresses catastrophic forgetting.
+
+35. Shi et al. (2024/2025, ACM CSUR). *Continual Learning of Large Language Models: A Comprehensive Survey.*
+    - URL: https://arxiv.org/abs/2404.16789
+    - PDF: papers/2404.16789-continual-learning-llm-survey.pdf
+    - GitHub: https://github.com/Wang-ML-Lab/llm-continual-learning-survey
+    - Why it matters: taxonomy of CL-LLM approaches along vertical (general→specific) and horizontal (time/domain) dimensions; covers CPT, DAP, and CFT stages; best entry point for the full landscape.
+
+## Neuroscience of memory — 2025–2026 (added 2026-05-13)
+Note: these are journal papers, not arXiv — PDFs are paywalled. Links go to abstract/news coverage.
+
+N1. Rajasethupathy lab (Nov 2025, Nature). *Thalamocortical transcriptional gates coordinate memory stabilization.*
+    - DOI: https://doi.org/10.1038/s41586-025-09774-6
+    - News: https://www.rockefeller.edu/news/38658-how-the-brain-decides-what-to-remember/
+    - Why it matters: identifies sequential molecular "timers" (Camta1, Tcf4, Ash1l) in thalamus → cortex cascade that evaluate memory salience over hours and either promote memories to lasting storage or demote them. Biological analogue of a memory write policy.
+
+N2. Robinson et al. (Jan 2026, Neuron). *Large sharp-wave ripples promote hippocampo-cortical memory reactivation and consolidation during sleep.*
+    - DOI: https://doi.org/10.1016/j.neuron.2025.10.003
+    - Preprint: https://www.biorxiv.org/content/10.1101/2025.06.27.662061v1
+    - Why it matters: shows only a subset of large SWRs during NREM sleep drive memory reactivation in both hippocampus and prefrontal cortex; ripple rate increases selectively after learning; closed-loop optogenetic validation. Mechanistic confirmation of the hippocampal replay model.
+
+N3. Harvard Chemistry (May 2025). *New research: tracking precisely how learning, memories are formed.*
+    - URL: https://www.chemistry.harvard.edu/news/2025/05/new-research-tracking-precisely-how-learning-memories-are-formed
+    - Why it matters: first nanometre-resolution visualisation of synaptic plasticity (LTP) in real time; shows structural reorganisation of AMPA receptors during memory formation. Confirms and extends the synaptic plasticity and memory hypothesis at unprecedented resolution.
+
+N4. Jarome lab, Virginia Tech (Oct 2025). *Scientists find ways to boost memory in aging brains.*
+    - URL: https://news.vt.edu/articles/2025/10/cals-jarome-improving-memory.html
+    - Why it matters: CRISPR correction of a specific molecular defect (excess inhibitory enzyme) in hippocampus and amygdala reverses age-related memory loss in rats. Suggests some memory decline is mechanistically specific and potentially reversible.
+
+N5. Systems memory consolidation during sleep review (2025, PMC/NIH).
+    - URL: https://pmc.ncbi.nlm.nih.gov/articles/PMC12576410/
+    - Why it matters: up-to-date review of NREM/REM sleep stage dynamics, hippocampo-cortical coupling, and the complementary learning systems framework. Good entry point for the full neuroscience background.
+
 ## Reliability / relevance notes
 - Priority given to primary sources (arXiv/ACL anthology) over blog summaries.
 - For very recent papers (2025–2026), validate claims against the PDF before citing specific numbers.
+- Neuroscience papers (N1–N5) are journal-paywalled; news/preprint links provided where available.

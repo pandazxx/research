@@ -267,3 +267,236 @@ The LLM-as-memory-manager paradigm (Generative Agents, A-Mem) has not been appli
 - How can memory provenance be made first-class in generation?
 - What is the right benchmark for real user personalization over months?
 - Can we align reflective memory without amplifying model biases?
+
+---
+
+## Training a model on top of a pre-trained LLM (added 2026-05-13)
+
+This section answers: *can you teach an LLM new things after it is already trained, and how?* This is directly relevant to memory because persistent learning from user interactions is essentially the same problem.
+
+### The core problem: catastrophic forgetting
+
+A neural network trained on new data tends to overwrite parameters that encoded old knowledge. This is called **catastrophic forgetting**. It is the central obstacle to any scheme that tries to update an LLM continuously from experience or user feedback.
+
+### Three major approaches
+
+#### 1. Full fine-tuning
+Train all of the model's billions of parameters on a new dataset. Most powerful but:
+- Requires enormous compute and memory (often multiple A100s).
+- Risks catastrophic forgetting of prior knowledge unless carefully regularised.
+- Not practical for per-user or per-session updates.
+
+#### 2. Parameter-efficient fine-tuning (PEFT) — the dominant approach in 2025
+Freeze the base model weights. Insert small trainable modules alongside existing layers. Only those new modules are updated.
+
+**LoRA (Low-Rank Adaptation)** is the canonical method (Hu et al., 2021 — https://arxiv.org/abs/2106.09685):
+- Frozen weight matrix W (e.g. the query projection in an attention head).
+- Two tiny matrices A (d × r) and B (r × d) are injected alongside W, where rank r ≪ d (typically r = 8–64).
+- During fine-tuning only A and B are updated. The update applied to W is: ΔW = B·A.
+- At inference, B·A is merged into W with zero added latency.
+- Result: ~10,000× fewer trainable parameters than full fine-tuning of GPT-3 class models; fits on a single consumer GPU.
+
+**Variants:**
+- *QLoRA* (Dettmers et al., 2023 — https://arxiv.org/abs/2305.14314): quantise the frozen base model to 4-bit, train LoRA adapters in 16-bit. Fits 65B parameter models on a single 48GB GPU.
+- *DoRA*: decomposes weight updates into magnitude and direction components for better fine-tuning quality.
+- *Spectrum*: selects which layers to fine-tune based on signal-to-noise ratio, further reducing wasted compute.
+
+**Key property for memory:** multiple task- or user-specific LoRA adapter sets can be trained on a shared frozen base and swapped at inference time. This is a practical architecture for per-user memory without model proliferation.
+
+#### 3. Mixture-of-Experts (MoE) expansion
+Rather than modifying existing weights at all, add new *expert* layers to the model. A learned router dispatches each token to the right subset of experts. Old experts stay frozen; new experts encode new knowledge.
+
+- Training a new "coding expert" module on top of a general LLM leaves the general knowledge intact.
+- **CL-MoE** (CVPR 2025 — https://arxiv.org/abs/2503.00413): dual-momentum MoE for multimodal continual learning, uses dedicated LoRA expert per task plus a shared LoRA expert for common knowledge.
+- **MoE-CL** (https://arxiv.org/abs/2509.18133): combines MoE routing with LoRA experts for self-evolving continuous fine-tuning.
+- **Layer-wise allocation** (2025): calculates language similarity per layer and allocates more new experts to layers that show lower similarity between old and new domains — avoids blanket expert addition, which does not reliably improve performance.
+
+**Caveat:** adding experts increases inference cost (more parameters to route through) and requires careful router training to avoid load imbalance.
+
+#### 4. Self-distillation fine-tuning (SDFT) — MIT / ETH Zurich
+A newer approach (2026 — https://arxiv.org/abs/2601.19897) that teaches the model from demonstrations *and* from its own experiments, leveraging in-context learning to avoid regression. The model essentially uses its own outputs as soft supervision. Shown to accumulate multiple skills without the performance oscillation seen in standard sequential fine-tuning.
+
+### Relevance to LLM agent memory
+
+| Problem in agent memory | Analogous fine-tuning concept |
+|---|---|
+| Learning user preferences without forgetting general capability | PEFT / LoRA: update small adapters, base stays frozen |
+| Supporting many users on one deployment | Adapter hot-swapping: one base model, per-user LoRA weights |
+| Accumulating domain expertise across tasks | MoE expansion: new expert per domain, old experts frozen |
+| Consolidating episodic experience into long-term skill | Self-distillation: model trains on its own successful trajectories |
+
+**Key open gap:** All current PEFT approaches assume periodic offline fine-tuning on a collected dataset. True *online* learning — updating adapter weights incrementally on each conversation turn — without catastrophic forgetting is still an unsolved research problem.
+
+### Practical summary (what to use today)
+1. Start with a frozen base model (e.g. Llama 3, Mistral, Qwen).
+2. Fine-tune LoRA adapters on your domain data (rank 8–64, target attention Q/V projections at minimum).
+3. For per-user personalization at scale: maintain per-user LoRA weight sets; merge on-the-fly at inference.
+4. For multi-domain expansion without forgetting: consider MoE-CL or CL-MoE architectures.
+5. Monitor forgetting with a held-out general capability evaluation set alongside your domain-specific eval.
+
+**Survey:** Continual Learning of Large Language Models — https://arxiv.org/abs/2404.16789
+
+---
+
+## How the human brain memorises — layman explanation of 2025–2026 research (added 2026-05-13)
+
+### The basic story: wiring that changes
+
+Every memory is a pattern of connections between neurons (brain cells). When you experience something, certain neurons fire together. The connections (synapses) between those co-firing neurons get physically stronger — this is called **long-term potentiation (LTP)**. "Neurons that fire together, wire together" is the folk summary of this 70-year-old principle, still the foundation of memory neuroscience.
+
+**What is actually happening at the synapse:**
+- The sending neuron releases glutamate (a chemical signal).
+- The receiving neuron has AMPA receptors that detect it — this is moment-to-moment signalling.
+- If the signal is strong or repeated, NMDA receptors (which were previously blocked) open and allow calcium to flow in.
+- Calcium triggers a cascade: more AMPA receptors are inserted into the synapse, the synapse physically enlarges, and gene expression changes make the strengthening permanent.
+- BDNF (brain-derived neurotrophic factor) is a key molecule that consolidates LTP and promotes survival of the newly strengthened synapse.
+
+A 2025 Harvard study used advanced microscopy to watch these synaptic changes happening in real time — the first time the full structural reorganisation during memory formation was visualised at nanometre resolution (https://www.chemistry.harvard.edu/news/2025/05/new-research-tracking-precisely-how-learning-memories-are-formed).
+
+### Two-system architecture: fast and slow memory
+
+The brain does not store memories in one place. It uses two cooperating systems (the **Complementary Learning Systems** framework, supported by decades of evidence):
+
+**Hippocampus (fast learner, temporary store):**
+- Rapidly encodes new experiences in a sparse, distinct code — avoids blending new memories with old ones (pattern separation).
+- Stores the episode with its time and place metadata.
+- Think of it as RAM or a scratch pad.
+
+**Neocortex (slow learner, permanent store):**
+- Gradually extracts the *general pattern* across many similar episodes.
+- Stores compressed, generalised knowledge without the contextual details.
+- Think of it as the hard drive.
+
+The hippocampus is needed only temporarily. Once the neocortex has absorbed the pattern, a hippocampus-damaged patient can still use the old knowledge — they just cannot form new explicit memories.
+
+### Sleep is when the transfer happens
+
+During sleep, the hippocampus "replays" the day's experiences to the neocortex, reinforcing the synaptic patterns there. This is called **systems consolidation**.
+
+Recent 2025 research on the mechanics of sleep consolidation:
+
+- **NREM sleep (deep, dreamless):** Hippocampus and neocortex are tightly coupled. The hippocampus broadcasts "sharp-wave ripples" — compressed replays of recent experiences — to the cortex. The cortex uses these to strengthen its own representation. Larger sharp-wave ripples correlate with better next-day recall (Robinson et al., Neuron 2026 — https://doi.org/10.1016/j.neuron.2025.10.003).
+- **REM sleep (dreaming):** Hippocampal influence on the cortex is reduced. The neocortex is relatively free to "explore" and recombine existing memories, which supports creativity and the integration of temporally separated events.
+- Alternating NREM → REM cycles across the night are what allow graceful accumulation of knowledge without overwriting earlier learning.
+
+**Key 2025 finding on overnight learning:** Sleep itself does not boost *new* learning capacity the next day (contradicting some older claims), but it firmly consolidates what was learned *before* sleep, freeing hippocampal capacity.
+
+### Molecular timers: how the brain decides what to keep
+
+A 2025 study identified a sequence of molecular "timers" that operate across different brain regions at different time scales (Rajasethupathy lab, Nature Nov 2025 — https://doi.org/10.1038/s41586-025-09774-6):
+- Immediately after an experience, short-lived molecular signals mark a synapse as "candidate for consolidation."
+- Over hours, the thalamus and cortex evaluate whether the experience was important (novel? emotionally significant? repeatedly encountered?).
+- Only memories that pass these evaluations receive the full protein-synthesis-dependent structural change that makes them permanent.
+
+This is the biological equivalent of a **write policy** in agent memory: not everything is stored long-term; the brain has an active filtering mechanism based on salience and repetition.
+
+### What makes memories last versus fade
+
+Recent ScienceDaily research (Nov 2025): a memory is more likely to last a lifetime if:
+1. **Emotional significance** — the amygdala (emotion centre) boosts consolidation by signalling importance to the hippocampus.
+2. **Novelty** — unexpected events trigger dopamine release, which strengthens LTP.
+3. **Repetition / spaced retrieval** — reactivating a memory re-consolidates it, making it stronger each time (reconsolidation).
+4. **Sleep** — without sleep after encoding, consolidation is incomplete.
+
+Forgetting is not failure; it is partly *active*. Inhibitory mechanisms prune weak or irrelevant synapses to prevent memory overload — the biological equivalent of garbage collection.
+
+### Reversing memory loss (2025 frontier)
+
+- **Virginia Tech / CRISPR (Oct 2025 — https://news.vt.edu/articles/2025/10/cals-jarome-improving-memory.html):** Memory loss in aging rats reversed by CRISPR editing in the hippocampus and amygdala, correcting molecular disruptions (excess inhibitory enzyme activity) that had suppressed LTP. Demonstrates that some age-related memory loss is mechanistically specific and potentially reversible, not just neurodegeneration.
+- **Molecular timer targeting:** If the thalamo-cortical timer cascade can be modulated pharmacologically, there may be a window to selectively strengthen memories shortly after encoding — relevant for PTSD (erasing), learning disabilities (enhancing), and dementia (slowing loss).
+
+### The connection to LLM memory research
+
+| Brain mechanism | LLM agent memory analogue |
+|---|---|
+| Hippocampus: rapid sparse encoding | External episodic memory store (vector DB, event log) |
+| Neocortex: slow generalised learning | Base model weights or fine-tuned adapter |
+| Sharp-wave ripple replay during sleep | Offline reflection / consolidation loop (Generative Agents, A-Mem) |
+| Molecular salience filter (thalamus/cortex) | LLM importance scoring (1–10 salience in Generative Agents) |
+| Synaptic pruning / forgetting | TTL expiry, contradiction handling, selective forgetting (MemoryAgentBench) |
+| Reconsolidation on retrieval | Memory update-on-access (each retrieval refreshes the record) |
+
+The brain's two-system architecture is exactly the design intuition behind hierarchical agent memory: fast, specific episodic store + slow, generalised model knowledge. The open challenge in both domains is the same — how to transfer the right things from the fast store to the slow one without overwriting what is already there.
+
+---
+
+## Does LoRA work on closed-weight models like Claude Opus? (added 2026-05-14)
+
+**Short answer:** No. LoRA training fundamentally requires access to the base model's weight tensors.
+
+### Why weight access is required
+The LoRA forward pass is `h = Wx + (α/r)·BAx`. Two things require the actual `W` tensor on hardware you control:
+1. Computing the loss requires running the full frozen `W` to get the model's output.
+2. The backward pass propagates gradients *through* `W` to compute updates for the trainable adapters `A` and `B`.
+
+A black-box API gives only final text output — no intermediate activations, no gradients, no weights. LoRA cannot run on top of that.
+
+### Status of major closed models (May 2026)
+
+| Model | Direct LoRA possible? | What is offered |
+|---|---|---|
+| Claude (Opus / Sonnet / Haiku) | No | No public fine-tuning of any kind. Anthropic offers Memory features and prompt caching, but no weight-level customisation. |
+| GPT-4 / GPT-4o | Indirectly (managed) | OpenAI runs LoRA-style fine-tuning on their servers. You upload data, get a fine-tuned endpoint. Never see weights. |
+| Gemini | Indirectly (managed) | Google offers managed fine-tuning through Vertex AI; same pattern as OpenAI. |
+| Llama / Mistral / Qwen / DeepSeek / Gemma | Yes, directly | Open weights — download, freeze the base, train LoRA adapters locally. |
+
+### Practical alternatives for personalising a closed model
+1. **Managed fine-tuning** (OpenAI/Google only). Closest to LoRA in spirit; you pay per training token and the adapter is locked to the vendor.
+2. **Long context + RAG.** Push memory into the prompt at inference time. No training. This is what most current "memory" features on Claude and ChatGPT actually do.
+3. **Prompt-side learning.** Curate in-context examples or a system prompt that evolves over time.
+4. **Distillation.** Use the closed model to generate training data, then LoRA-train an open model on that data. Gets a personalisable model that mimics the closed one.
+5. **Black-box prompt optimisation** — see next section. Treat the closed model as a fixed function and learn *prompts* via gradient-free search using only API outputs.
+
+### Implication for agent memory
+The LoRA-based personalisation story (PEFT, adapter hot-swapping, MoE-CL) applies only to open-weight models. For closed models the equivalent is currently *retrieval-augmented memory* — which is why nearly every Claude/GPT memory feature shipping in 2025–2026 is built on RAG rather than on weight updates.
+
+---
+
+## Black-box prompt optimisation — research direction to study (added 2026-05-14)
+
+If you cannot touch the model weights, the next-best handle for adaptation is the *prompt*. Black-box prompt optimisation (BPO) treats the closed LLM as a fixed function and searches over the input text space using only the model's API outputs — no gradients, no weight access, no logits required.
+
+### Why it matters for memory
+Most LLM agent memory systems already lean heavily on prompts: the LLM-as-memory-manager paradigm (Generative Agents, A-Mem) expresses *everything* — importance scoring, retrieval ranking, reflection — as prompts. The quality of those prompts dominates system behaviour, and they are currently hand-tuned. Automated black-box optimisation of memory-management prompts is an underexplored gap in the field.
+
+### Four main families of methods
+
+#### 1. Sampling + selection (the original APE family)
+- **APE — Automatic Prompt Engineer** (Zhou et al., 2022 — https://arxiv.org/abs/2211.01910). Use an LLM to *propose* candidate instructions, score each on a small validation set, keep the best. Roughly Monte-Carlo over the prompt space. Reaches human-level prompt quality on instruction-following benchmarks. First convincing demonstration that LLMs can write better prompts than humans.
+
+#### 2. Evolutionary / population-based
+- **EvoPrompt** (Guo et al., 2023 — https://arxiv.org/abs/2309.08532). Apply genetic algorithms: maintain a population of prompts, crossover and mutate them via LLM calls, select on validation score. Connects LLMs with classical evolutionary computation.
+- **PromptBreeder** (Fernando et al., 2023 — https://arxiv.org/abs/2309.16797). Self-referential variant: the LLM also evolves the *mutation prompts*, not just the task prompts. Diversity-maintenance heuristics prevent collapse.
+
+#### 3. LLM-as-optimiser (gradient-free analogue)
+- **OPRO — Optimization by PROmpting** (Yang et al., Google DeepMind, 2023 — https://arxiv.org/abs/2309.03409). At each step, the LLM is shown previous prompts and their scores, then asked to propose a better prompt. The LLM itself is the optimiser; trajectory of (prompt, score) pairs is the only state. Effective on small-scale optimisation including prompt search.
+- **Language Models as Black-Box Optimizers for Vision-Language Models** (CVPR 2024). Same principle applied to VLMs — LLM proposes prompts, target model scores them, no gradients involved.
+
+#### 4. Structured / programmatic frameworks
+- **DSPy** (Stanford NLP, ongoing — https://dspy.ai/, https://github.com/stanfordnlp/dspy). Reframes prompting as Python programs over typed *Signatures* and *Modules*. Provides optimisers (BootstrapFewShot, MIPROv2, etc.) that compile the program by searching over instructions and few-shot demonstrations. The current de facto standard for serious prompt optimisation work; supports both open and closed models.
+- **BPO — Black-Box Prompt Optimization** (Cheng et al., ACL 2024 — https://arxiv.org/abs/2311.04155). Trains a small open-source *prompt optimiser model* that rewrites user prompts into better aligned ones. Reports 8.8–22.0% win-rate gains across GPT-3.5, GPT-4, Claude-2, Llama-2-chat, Vicuna.
+- **AutoPDL** (2025 — https://arxiv.org/abs/2504.04365). AutoML-style successive-halving over the combinatorial space of prompting patterns and demonstrations. 9–69pp accuracy gains.
+- **SICA / Evolving Excellence** (2025 — https://arxiv.org/abs/2512.09108). Agents that edit their own source prompts; 17–53% gains on coding tasks.
+
+### What is hard about it
+- **Cost.** Every candidate prompt needs API calls to score. Search budgets blow up fast on closed models.
+- **Noise.** LLM outputs are stochastic — the same prompt scored twice will give different results. Need robust averaging.
+- **Validation set design.** Without a good held-out scoring set, you overfit to noise and pick prompts that happen to look good on the search examples.
+- **Transferability.** A prompt optimised for GPT-4 often does not transfer to Claude — each model has different idiosyncrasies. BPO-style learned rewriters partly address this but not fully.
+
+### Open questions especially relevant to agent memory
+1. Can black-box prompt optimisation be applied specifically to *memory-management prompts* (write policy, importance scoring, reflection)? No published work has tried this directly.
+2. How to optimise prompts *online* as the agent runs, rather than offline once on a validation set? Memory prompts in deployed agents see distribution shift; a fixed optimised prompt drifts.
+3. Can the optimisation loop itself be made memory-aware — learning which prompt variants worked for which kinds of users / tasks, and routing accordingly?
+4. What is the right *evaluation function* for a memory-management prompt? Downstream task success is sparse; a richer per-prompt reward signal is the bottleneck.
+
+### Surveys to read first
+- **A Systematic Survey of Automatic Prompt Optimization Techniques** (2025 — https://arxiv.org/abs/2502.16923). Comprehensive overview of the field, taxonomies, evaluation methodology.
+
+### Suggested study order
+1. APE (2211.01910) — establishes the basic paradigm.
+2. OPRO (2309.03409) — establishes LLM-as-optimiser.
+3. DSPy docs + MIPROv2 paper — practical state of the art.
+4. BPO (2311.04155) — the closed-model alignment angle.
+5. The 2025 survey (2502.16923) for breadth.
+6. Then attempt: apply DSPy/MIPROv2 to a memory-management prompt (e.g. Generative Agents' importance scorer) and measure whether it transfers across domains.
