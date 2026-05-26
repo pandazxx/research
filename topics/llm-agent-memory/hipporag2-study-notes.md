@@ -249,6 +249,64 @@ The cost is bought in exchange for fixing v1's simple-QA weakness and gaining th
 
 ---
 
+## Why incremental updates are hard — matrix and data-structure analysis
+
+A common first impression is that HippoRAG's matrix-based computation locks it into fixed dimensions that prevent incremental memory growth. The truth is more nuanced: **the matrices themselves can grow, but the synonymy edges are globally interdependent**, and that is the real bottleneck.
+
+### What data structures HippoRAG uses and whether they can grow
+
+| Data structure | Shape | Can it grow incrementally? |
+|---|---|---|
+| **Graph** (igraph object) | N nodes, E edges | **Yes** — igraph supports O(1) node/edge addition |
+| **Entity embedding matrix** | N × D (D=768 Contriever, 1024 NV-Embed) | **Yes** — append a row per new entity |
+| **Passage scoring matrices** (docs_to_facts, facts_to_phrases) | Sparse, P×T and T×N | **Awkward** — scipy CSR needs internal array rebuild; use dict representation instead |
+| **FAISS index** | N vectors of dimension D | **Partially** — can add vectors; but see synonymy problem below |
+| **PPR transition matrix M** | N × N (implicit) | **Always fresh** — igraph recomputes from current edge list per PPR call |
+
+The embedding dimension D (768 or 1024) is **fixed per model** but does **not change** when memories are added. All entities live in the same D-dimensional space regardless of graph size. D is not the bottleneck.
+
+### The real bottleneck: synonymy edge recomputation
+
+When you add a new entity X:
+
+1. **Compute X's embedding** — one encoder call. Cheap. ✓
+2. **Find X's nearest neighbours** — one FAISS query (X against all existing entities). Cheap. ✓
+3. **Add synonymy edges from X to its neighbours** — dictionary inserts. Cheap. ✓
+4. **Check whether existing entities should now list X as a neighbour** — **this is the problem.** ✗
+
+Step 4 requires re-querying **all N existing entities against X** — O(N) comparisons. The existing NN lists were precomputed without X. If entity Y had neighbours all above 0.8 cosine, and X scores 0.95 with Y, X should be Y's top neighbour — but Y's precomputed list doesn't know X exists.
+
+For one new entity, O(N) is fast. For a batch of 1,000 new entities (a few new documents), it's O(N × 1000), and the synonymy graph can change substantially. This is why HippoRAG does a full rebuild.
+
+### Secondary bottleneck: node specificity cascade
+
+Node specificity = `1 / (passage count for entity i)`. Adding a new passage mentioning existing entities changes their specificity, which cascades into different passage-ranking scores for all queries involving those entities. Cheap to recompute per entity, but the downstream retrieval effect is unpredictable without re-running queries.
+
+### PPR itself is fine
+
+The transition matrix M is **not stored** — igraph computes it from the current edge list each time PPR runs. So PPR always operates on whatever graph exists at query time. There is no "stale matrix" problem for the core retrieval algorithm.
+
+### What LightRAG does differently
+
+LightRAG claims incremental updates by skipping all-pairs synonymy entirely. New entities get only relation edges — no synonymy edges against the full graph. Cheaper, but loses the cross-passage entity linking that makes HippoRAG's retrieval strong.
+
+### Three potential solutions for incremental updates
+
+1. **Lazy synonymy.** Don't recompute synonymy for every new entity. Batch new entities; periodically rebuild synonymy (e.g., nightly). Between rebuilds, new entities participate via relation edges only. *Pragmatic for a research project.*
+2. **Approximate NN updates.** Use FAISS `IndexIVFFlat` instead of `IndexFlat`. IVF supports `add()` and the existing NN structure is approximately maintained. Not exact, but fast. *Good if synonymy quality matters but latency matters more.*
+3. **Drop synonymy edges entirely.** Rely on v2's query-to-triple matching to find related entities online (via LLM). Shifts cost from offline synonymy to online LLM calls. *The radical design shift that v2 is partially already making.*
+
+### Implications for reconsolidation research
+
+If the research direction involves making HippoRAG's memory evolve over time:
+- **Adding new memories:** hits the synonymy bottleneck above. Solution 1 (lazy rebuild) is probably sufficient.
+- **Updating existing memories (reconsolidation):** modifying edge weights or replacing nodes doesn't trigger the synonymy problem — it's changes to the existing graph, not additions. PPR automatically uses updated weights on the next query.
+- **Deleting memories (forgetting):** removing nodes/edges from igraph is O(1). Node specificity recalculates cheaply. Synonymy edges touching the deleted node just disappear. **Forgetting is actually the easiest operation to support incrementally.**
+
+This is a useful asymmetry: *forgetting is cheap; remembering (adding) is expensive*. A system that aggressively forgets (pruning low-value nodes) while selectively remembering (batched synonymy rebuild) could be both incrementally updatable and high-quality.
+
+---
+
 ## Open questions / things v2 still doesn't answer
 
 1. **Where exactly does the recognition-memory step earn its keep?** The paper shows aggregate wins but doesn't ablate the filter prompt or measure how often the filter actually changes the candidate set.
