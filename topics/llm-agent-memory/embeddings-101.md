@@ -193,7 +193,256 @@ That single experiment teaches more than reading any paper. **Run it.**
 
 ---
 
-## 9. The main thing embeddings are used for: semantic search
+## 9. Going one level deeper — what happens inside an embedder
+
+So far we've treated the embedder as a black box: text goes in, a vector comes out. Now let's open the box. This section is optional for using embeddings, but understanding it prevents a lot of confusion later — especially around advanced topics like late chunking.
+
+### The pipeline from text to vector
+
+What you call `model.encode("some text")` actually involves four distinct stages:
+
+```
+"Maria is a chemistry teacher."   ← Raw text (Python string)
+            ↓
+       Tokenization                 ← Split into subword pieces
+            ↓
+"[CLS]", "Maria", "is", "a", "chemistry", "teacher", ".", "[SEP]"
+            ↓
+       ID lookup                    ← Each piece → an integer
+            ↓
+[101, 3854, 2003, 1037, 6248, 3836, 1012, 102]   ← Token IDs
+            ↓
+       Tensor packaging             ← Wrap as tensor with batch dim
+            ↓
+tensor([[101, 3854, 2003, 1037, 6248, 3836, 1012, 102]])   ← shape (1, 8)
+            ↓
+       Forward pass through transformer layers
+            ↓
+Per-token vectors (last hidden state)   ← shape (1, 8, 768)
+            ↓
+       Pooling (mean / CLS / etc.)
+            ↓
+Sentence embedding                  ← shape (768,)
+```
+
+So the input the model actually consumes is **not** text — it's a 2D tensor of integers with shape `(batch_size, sequence_length)`.
+
+### Tokenization: text becomes integer IDs
+
+A tokenizer splits raw text into **subword pieces** using a fixed vocabulary learned during model training:
+
+```python
+tokenizer.tokenize("Antidisestablishmentarianism is a long word.")
+# → ['Anti', 'dis', 'establish', 'ment', 'arianism', ' is', ' a', ' long', ' word', '.']
+```
+
+Notice the long word was split into five sub-pieces. The tokenizer breaks unfamiliar words into known sub-pieces from its vocabulary. This is why we say "tokens" rather than "words" — they often don't align with word boundaries.
+
+**Rough rule of thumb:** for English, you get about **1.3 tokens per word**. A 100-word sentence becomes ~130 tokens.
+
+After tokenization, each piece is looked up in the vocabulary table and replaced by an integer ID:
+
+```python
+tokenizer.vocab["maria"]    # → 3854
+tokenizer.vocab["[CLS]"]    # → 101
+tokenizer.vocab_size        # → 30522 (for BERT-base)
+```
+
+### Special tokens
+
+The tokenizer automatically adds special markers to your sequence:
+
+| Token | Purpose |
+|---|---|
+| `[CLS]` | Classification token, prepended to every input. Its final hidden state is often used as the pooled sentence embedding. |
+| `[SEP]` | Separator, appended at the end (and between segments if you input two sentences). |
+| `[PAD]` | Padding token, used to fill out shorter sequences to a fixed length. |
+| `[MASK]` | Used during pretraining for masked language modeling. Not relevant for inference. |
+| `[UNK]` | Unknown token, used when the input has characters the tokenizer can't handle. |
+
+You don't manage these directly — the tokenizer adds them — but they do take up positions in the sequence.
+
+### The input shape, formally
+
+```
+Input tensor shape: (batch_size, sequence_length)
+Input tensor dtype: int64 (integer token IDs)
+```
+
+Where:
+
+- `batch_size` = number of input sequences processed together
+- `sequence_length` = number of tokens per sequence (padded to a uniform length within a batch)
+
+### Batching and the attention mask
+
+You almost always embed many sentences at once for efficiency. The model processes a batch in roughly the same time as one sentence:
+
+```python
+sentences = [
+    "Maria is a chemistry teacher.",  # 8 tokens
+    "The cat sat on the mat.",        # 9 tokens
+    "Python is short.",                # 6 tokens
+]
+inputs = tokenizer(sentences, padding=True, return_tensors="pt")
+print(inputs["input_ids"].shape)  # torch.Size([3, 9])
+```
+
+Shape `(3, 9)` means 3 sentences, 9 tokens each. The shorter sentences are **padded** with the `[PAD]` token (ID 0) until they all match the longest in the batch.
+
+The tokenizer also returns an **attention mask** — a parallel tensor of 1s and 0s marking which positions are real tokens vs padding:
+
+```python
+inputs["attention_mask"]
+# tensor([[1, 1, 1, 1, 1, 1, 1, 1, 0],
+#         [1, 1, 1, 1, 1, 1, 1, 1, 1],
+#         [1, 1, 1, 1, 1, 1, 0, 0, 0]])
+```
+
+The model uses this mask to **ignore** padding positions during attention. Padding tokens take up space in the tensor (they have to, for shape uniformity), but they don't affect the meaningful tokens' representations.
+
+### Inside the model: layers and hidden states
+
+Once the integer IDs enter the model, they go through a stack of identical **transformer layers** (12, 24, or more depending on the model). Each layer transforms the representations:
+
+```
+Token IDs                  shape: (1, 8)         dtype: int64
+        ↓
+[Embedding lookup layer]   ← maps each ID to an initial 768-dim vector
+        ↓
+Initial embeddings         shape: (1, 8, 768)    dtype: float32
+        ↓
+[Transformer layer 1]      ← self-attention + feed-forward
+        ↓
+Hidden state (layer 1)     shape: (1, 8, 768)    dtype: float32
+        ↓
+[Transformer layer 2]
+        ↓
+Hidden state (layer 2)     shape: (1, 8, 768)    dtype: float32
+        ↓
+   ...
+        ↓
+[Transformer layer N]
+        ↓
+Last hidden state          shape: (1, 8, 768)    dtype: float32
+        ↓
+[Pooling]                  ← mean or CLS-token
+        ↓
+Pooled embedding           shape: (1, 768)       dtype: float32
+```
+
+A **hidden state** is just the output of one transformer layer. It's a 3D tensor `(batch_size, sequence_length, hidden_dim)` — one vector per token at that particular layer's level of refinement.
+
+Each layer does two operations:
+1. **Self-attention**: each token "looks at" every other token and updates itself based on what it sees.
+2. **Feed-forward**: each token's representation is further refined.
+
+The deeper you go in the stack, the more contextually-rich each token's vector becomes. By the final layer:
+- "Maria" has integrated context from the whole sentence
+- "She" has integrated context that includes "Maria"
+- Every token "knows" about every other token
+
+The **last hidden state** — the output of the final transformer layer, before any pooling — is what you want for late chunking. It contains the fully-contextualized per-token vectors.
+
+The word "hidden" is a relic of older neural network terminology. It just means "internal" — not the input, not the final pooled output, but the intermediate per-token state inside the network. Nothing mysterious.
+
+### The two "embeddings" (don't confuse them)
+
+The word "embedding" is used in two different ways inside a transformer:
+
+1. **Initial token embeddings** (from the embedding lookup layer): one 768-dim vector per token ID, looked up from a learned table. These are the *starting* vectors before the transformer layers do their work. They're not contextualized.
+2. **Sentence embedding** (the final pooled output): one 768-dim vector summarising the whole sentence. This is what you use for retrieval.
+
+The transformer's job is to convert (1) into (2), via the intermediate hidden states. When people say "embedding" without qualification, they almost always mean (2).
+
+### Maximum sequence length
+
+Every embedder has a maximum input length:
+
+| Model | Max sequence length |
+|---|---|
+| `all-MiniLM-L6-v2` | 256 tokens |
+| BERT-base | 512 tokens |
+| Most OpenAI embeddings | 8191 tokens |
+| Jina v3 | 8192 tokens |
+| Voyage-3-large | 32768 tokens |
+
+If your input exceeds the limit, the tokenizer silently **truncates** (by default) — meaning the trailing portion of your text is discarded before reaching the model. This is a common source of silent quality issues: you embed a long document, the embedder only sees the first 512 tokens, and you don't realise the rest was lost.
+
+**Always check the model's max length.** If you might exceed it, either chunk your input or switch to a long-context embedder.
+
+### Putting it together: complete example with shapes
+
+```python
+import torch
+from transformers import AutoTokenizer, AutoModel
+
+tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
+model = AutoModel.from_pretrained("jinaai/jina-embeddings-v3")
+
+texts = [
+    "Maria is a chemistry teacher.",
+    "She lives in Boston.",
+]
+
+# Tokenize and batch
+inputs = tokenizer(texts, padding=True, return_tensors="pt")
+print(inputs["input_ids"].shape)       # torch.Size([2, 9])
+print(inputs["attention_mask"].shape)  # torch.Size([2, 9])
+
+# Run the model
+with torch.no_grad():
+    outputs = model(**inputs, output_hidden_states=True)
+
+print(outputs.last_hidden_state.shape)  # torch.Size([2, 9, 1024])
+
+# Each text's per-token vectors:
+text1_vectors = outputs.last_hidden_state[0]  # shape (9, 1024)
+text2_vectors = outputs.last_hidden_state[1]  # shape (9, 1024)
+
+# To get the standard sentence embedding, apply mean pooling
+# (respecting the attention mask so padding is ignored)
+def mean_pool(hidden, mask):
+    mask = mask.unsqueeze(-1).float()
+    return (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
+
+sentence_embs = mean_pool(outputs.last_hidden_state, inputs["attention_mask"])
+print(sentence_embs.shape)  # torch.Size([2, 1024])
+```
+
+### Summary of shapes
+
+| Stage | Shape | dtype |
+|---|---|---|
+| Raw text | a Python string | str |
+| Tokenized text | list of token strings | list[str] |
+| Token IDs | (batch_size, sequence_length) | int64 |
+| Attention mask | (batch_size, sequence_length) | int64 |
+| Initial token embeddings | (batch_size, sequence_length, hidden_dim) | float32 |
+| Hidden state at any layer | (batch_size, sequence_length, hidden_dim) | float32 |
+| Last hidden state | (batch_size, sequence_length, hidden_dim) | float32 |
+| Pooled sentence embedding | (batch_size, hidden_dim) | float32 |
+
+The two shapes you'll see most often:
+- **Input**: `(batch_size, sequence_length)` of integers
+- **Output (pooled)**: `(batch_size, hidden_dim)` of floats
+
+For late chunking, you skip the pooling step and work directly with the `(batch_size, sequence_length, hidden_dim)` last hidden state.
+
+### Why this all matters
+
+Once you internalise this picture, several things become clear:
+
+- **Why different models have incompatible vector spaces** — they have different vocabularies, different layer counts, different training. The "768" in BERT and the "768" in another model don't refer to the same coordinate system.
+- **Why some embedders support late chunking and others don't** — late chunking requires access to the last hidden state, not just the pooled output. OpenAI's API doesn't expose it; most open-source models do.
+- **Why max sequence length matters** — your text becomes integer tokens, and the model's architecture has a fixed window. Exceed it and the rest is dropped.
+- **Why batching matters** — efficiency comes from processing many sequences in one forward pass. Padding + attention masks enable batches of mixed lengths.
+
+This is enough understanding to read advanced papers without losing the thread.
+
+---
+
+## 10. The main thing embeddings are used for: semantic search
 
 The pattern:
 
@@ -218,7 +467,7 @@ In production this scales to millions or billions of vectors using **vector data
 
 ---
 
-## 10. What embeddings encode (and what they don't)
+## 11. What embeddings encode (and what they don't)
 
 An embedding captures *whatever was useful for the contrastive training objective*. In practice, this includes:
 
@@ -237,7 +486,7 @@ The negation issue is worth remembering: a model that hasn't been specifically t
 
 ---
 
-## 11. Different embedding models, different perspectives
+## 12. Different embedding models, different perspectives
 
 Important: **embeddings from different models live in different spaces and cannot be compared.**
 
@@ -265,7 +514,7 @@ If in doubt, start with `all-MiniLM-L6-v2`. It's the model everyone uses for pro
 
 ---
 
-## 12. The mental model to internalise
+## 13. The mental model to internalise
 
 Three principles that hold across almost all uses of embeddings:
 
@@ -283,7 +532,7 @@ A 384-dim vector cannot capture every nuance of a paragraph. Similar embedding �
 
 ---
 
-## 13. Common beginner mistakes (and how to avoid them)
+## 14. Common beginner mistakes (and how to avoid them)
 
 | Mistake | Why it's wrong | Fix |
 |---|---|---|
@@ -296,7 +545,7 @@ A 384-dim vector cannot capture every nuance of a paragraph. Similar embedding �
 
 ---
 
-## 14. What to learn next
+## 15. What to learn next
 
 Now that you understand the basics:
 
@@ -312,7 +561,7 @@ Each of these is worth 1–2 hours of dedicated learning. Don't try to absorb al
 
 ---
 
-## 15. A 30-minute hands-on exercise
+## 16. A 30-minute hands-on exercise
 
 If you do nothing else after reading this, do this exercise:
 
