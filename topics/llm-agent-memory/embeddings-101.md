@@ -442,7 +442,150 @@ This is enough understanding to read advanced papers without losing the thread.
 
 ---
 
-## 10. The main thing embeddings are used for: semantic search
+## 10. The BERT family of encoders
+
+When we say "embedder" or "encoder," we almost always mean a model from the **BERT family**. This is a lineage of encoder-only transformer models that started with Google's BERT in 2018 and has dominated text embedding ever since.
+
+### The original BERT (2018)
+
+BERT — **B**idirectional **E**ncoder **R**epresentations from **T**ransformers — was introduced by Devlin et al. at Google in 2018. Two architectural choices made it landmark:
+
+1. **Encoder-only.** BERT keeps only the encoder half of the original transformer architecture (Vaswani et al., 2017 — "Attention Is All You Need"). No decoder, no generation. Just a stack of transformer encoder layers that take tokens in and produce contextualized token vectors out.
+2. **Bidirectional attention.** Earlier language models (like GPT-1) used *causal* attention — each token could only attend to tokens before it. BERT removed this restriction. Every token attends to every other token. This makes BERT terrible at left-to-right generation but excellent at *understanding* existing text.
+
+BERT was pretrained on the **Masked Language Modeling (MLM)** task: randomly mask 15% of input tokens, ask the model to predict them from the surrounding context. This forces the model to build rich contextual representations of every token.
+
+Two sizes were released:
+- **BERT-base**: 12 layers, 768 hidden dim, ~110M parameters.
+- **BERT-large**: 24 layers, 1024 hidden dim, ~340M parameters.
+
+### The BERT family tree
+
+After BERT, dozens of variants and successors emerged. The ones you'll encounter in this domain:
+
+| Model | Year | What's new |
+|---|---|---|
+| **RoBERTa** | 2019 | Same architecture, better training: more data, longer training, removed next-sentence-prediction. Facebook AI. |
+| **DistilBERT** | 2019 | Distilled to 6 layers — 60% smaller, ~95% of quality. |
+| **ALBERT** | 2019 | Parameter sharing across layers; much smaller memory footprint. |
+| **DeBERTa** | 2021 | Disentangled position–content attention. State-of-the-art for many classification tasks. |
+| **MPNet** | 2020 | Combined MLM + permuted language modeling objectives. |
+| **Sentence-BERT** | 2019 | First sentence-level fine-tuning of BERT for embeddings. Source of the sentence-transformers library. |
+| **MiniLM** | 2020 | Distilled into a small/fast sentence embedder — basis of `all-MiniLM-L6-v2`. |
+| **E5, BGE, GTE families** | 2022–2024 | Modern instruction-tuned sentence embedders, mostly BERT-family backbones (XLM-RoBERTa is the common base). |
+| **Jina v3** | 2024 | XLM-RoBERTa backbone + task-specific LoRA adapters. |
+
+All of these share BERT's core architecture: an encoder-only transformer stack with bidirectional attention. They differ in size, training data, training objectives, and downstream fine-tuning recipes.
+
+### Why this matters for embeddings
+
+Every embedder I've recommended in these notes (`all-MiniLM-L6-v2`, `BAAI/bge-large-en-v1.5`, `jinaai/jina-embeddings-v3`, etc.) is a BERT-family model. They all:
+- Use bidirectional attention.
+- Were initially pretrained with some form of MLM.
+- Were then fine-tuned (usually with contrastive learning) for sentence-level similarity.
+- Output per-token vectors that get pooled into one sentence embedding.
+
+The recent shift to decoder-only LLMs as embedders (E5-Mistral, LLM2Vec, NV-Embed-v2) is the first serious departure from this lineage — but for now, "embedder" still mostly means "a BERT-family model."
+
+### Encoder vs decoder distinction
+
+Worth being clear about this since it explains why GPT-style models aren't great default embedders:
+
+| Architecture | Attention | Best at | Examples |
+|---|---|---|---|
+| Encoder-only | Bidirectional | Understanding, classification, embedding | BERT, RoBERTa, MiniLM, BGE |
+| Decoder-only | Causal (one-way) | Generation, completion | GPT, Llama, Mistral, Claude |
+| Encoder-decoder | Both (different layers) | Translation, summarization | T5, BART |
+
+Encoder-only models can "see the whole context at once" via bidirectional attention. This is exactly what you want for producing a representation of a piece of text. Decoder-only models build up understanding strictly left-to-right, which is less natural for producing position-symmetric outputs like sentence embeddings.
+
+(LLM2Vec and similar techniques essentially convert decoder-only LLMs to act bidirectionally for embedding purposes, getting around this limitation.)
+
+---
+
+## 11. Anisotropy — why token vectors cluster
+
+Once you start running experiments with token-level embeddings, you'll notice something surprising: **the cosine similarity between any two tokens in the same sentence is unexpectedly high** — typically 0.80–0.95, even for tokens that should be conceptually different.
+
+This isn't noise or a reproduction bug. It's a well-documented property of BERT-family encoders called **anisotropy**.
+
+### The phenomenon
+
+In an ideal embedding space, token vectors would be spread roughly uniformly across a high-dimensional sphere. Two random tokens would have cosine similarity near 0; semantically related tokens would have meaningfully higher similarity than that.
+
+In practice, **BERT-family encoders produce token vectors that occupy a narrow cone of the embedding space.** Two random tokens have cosine similarity ~0.4 as a baseline floor. Two tokens in the same sequence have ~0.8 or higher.
+
+Empirically, the typical similarity ranges for a vanilla BERT-family model:
+
+| Comparison | Typical cosine similarity |
+|---|---|
+| Same token, same sequence | 0.95+ |
+| Adjacent tokens, same sequence | 0.90–0.95 |
+| Distant tokens, same sequence | 0.75–0.85 |
+| Same token, different sequences | 0.65–0.80 |
+| Random tokens, different sequences | 0.30–0.55 |
+
+The whole "interesting" range of cosine similarity is compressed into a small band, with a hard floor (~0.3+) imposed by anisotropy.
+
+### Why it happens
+
+Several factors compound:
+
+1. **Self-attention is a weighted average.** Stacks of attention layers cumulatively pull token vectors toward each other. By the last layer of a 12- or 24-layer encoder, every token has been blended with every other token in its sequence many times.
+2. **Residual connections only partially preserve token identity.** They help but the cumulative mixing dominates.
+3. **Encoders aren't trained to keep tokens distinct.** They're trained so that *pooled sentence vectors* discriminate between similar and dissimilar sentences. Per-token discrimination isn't an objective.
+4. **Position embeddings drift.** Position information gets gradually diluted across layers.
+
+Net effect: by the time you reach the last hidden state, the per-token vectors look very similar within a sequence — they all live in the same anisotropic cone.
+
+### Why does anything work, then?
+
+If per-token vectors are nearly identical, how do embedders retrieve correctly?
+
+**Pooling washes out the within-sequence noise.** When you mean-pool many token vectors that are all ~0.9 similar to each other, you get a vector that's essentially the centroid of that cone. But two *different sentences* produce centroids in *different* parts of the embedding space — and those centroids are well-separated, even though the individual tokens within each sentence are not.
+
+The retrieval signal lives in the **between-sentence** dimension, which the pooling step preserves. The **within-sentence** dimension is noisy and largely uninformative.
+
+### A concrete example
+
+Take this sentence:
+
+> "Joey is living in Singapore. She is a software engineer. My wife is living in Singapore too. She is a house wife."
+
+Running with BGE-large-en-v1.5, comparing per-token vectors from the last hidden state:
+
+```
+she1 ↔ she2:   0.959   (same token, same sequence)
+she2 ↔ wife:   0.934   (adjacent tokens, same sequence)
+she1 ↔ Joey:   0.849   (distant tokens, same sequence)
+joey ↔ wife:   0.794   (very distant tokens, same sequence)
+```
+
+All four pairs are above 0.79, even though the underlying tokens are very different — proper noun, common noun, pronoun. The *ordering* is meaningful (0.96 > 0.93 > 0.85 > 0.79 tracks the intuitive similarity), but the entire scale is compressed into the 0.79–0.96 band rather than spanning the theoretical 0.0–1.0.
+
+For comparison, two random tokens from *different* sequences typically score 0.30–0.55. The within-sequence floor of ~0.79 is a direct measure of how strong the anisotropy is.
+
+### Implications
+
+1. **Don't trust token-level cosine similarity at face value.** A score of 0.85 doesn't mean "85% similar in meaning"; it might just mean "in the same sentence."
+2. **Pooled sentence embeddings still work** because pooling extracts the centroid of the anisotropic cone, and centroids of different cones (different sentences) are well-separated.
+3. **Coreference resolution at the embedding level is weak.** The "she refers to Joey" signal exists — you can detect it as a small bump in cosine similarity — but it's swamped by the anisotropic baseline.
+4. **Some embedders are designed to be less anisotropic.** E5-Mistral, NV-Embed-v2, and other recent decoder-LLM-based embedders are explicitly trained with isotropy-promoting objectives. Older BERT-family models (vanilla BERT, RoBERTa) are highly anisotropic.
+5. **Whitening transformations can post-process embeddings** to be more isotropic. Standard trick if you need cleaner per-token signals.
+
+### Further reading
+
+The phenomenon was rigorously characterised in 2019–2021 by three papers worth knowing:
+
+- **Ethayarajh (EMNLP 2019)**, *"How Contextual are Contextualized Word Representations?"* — first thorough documentation that BERT-family token vectors are highly anisotropic. Showed empirically that contextualized vectors are *less* isotropic than the static word vectors (word2vec, GloVe) they were supposed to improve over. arXiv:1909.00512 — saved as `papers/1909.00512-ethayarajh-contextual.pdf`.
+- **Li et al. (EMNLP 2020)**, *"On the Sentence Embeddings from Pre-trained Language Models"* — introduced **BERT-flow**, a learned invertible mapping that transforms BERT's anisotropic distribution into an isotropic Gaussian. Demonstrated significant retrieval improvements after this transformation. arXiv:2011.05864 — saved as `papers/2011.05864-bert-flow.pdf`.
+- **Su et al. (2021)**, *"Whitening Sentence Representations for Better Semantics and Faster Retrieval"* — showed that simple statistical whitening (centring and decorrelating) gives most of BERT-flow's benefits without learning a transformation. The current standard preprocessing trick. arXiv:2103.15316 — saved as `papers/2103.15316-whitening.pdf`.
+
+If you find yourself doing token-level analysis on BERT-family embeddings, these papers are worth reading in order. For typical sentence-level retrieval, modern instruction-tuned embedders (BGE, E5, Jina v3) handle most of the anisotropy issue internally.
+
+---
+
+## 12. The main thing embeddings are used for: semantic search
 
 The pattern:
 
@@ -467,7 +610,7 @@ In production this scales to millions or billions of vectors using **vector data
 
 ---
 
-## 11. What embeddings encode (and what they don't)
+## 13. What embeddings encode (and what they don't)
 
 An embedding captures *whatever was useful for the contrastive training objective*. In practice, this includes:
 
@@ -486,7 +629,7 @@ The negation issue is worth remembering: a model that hasn't been specifically t
 
 ---
 
-## 12. Different embedding models, different perspectives
+## 14. Different embedding models, different perspectives
 
 Important: **embeddings from different models live in different spaces and cannot be compared.**
 
@@ -514,7 +657,7 @@ If in doubt, start with `all-MiniLM-L6-v2`. It's the model everyone uses for pro
 
 ---
 
-## 13. The mental model to internalise
+## 15. The mental model to internalise
 
 Three principles that hold across almost all uses of embeddings:
 
@@ -532,7 +675,7 @@ A 384-dim vector cannot capture every nuance of a paragraph. Similar embedding �
 
 ---
 
-## 14. Common beginner mistakes (and how to avoid them)
+## 16. Common beginner mistakes (and how to avoid them)
 
 | Mistake | Why it's wrong | Fix |
 |---|---|---|
@@ -545,7 +688,7 @@ A 384-dim vector cannot capture every nuance of a paragraph. Similar embedding �
 
 ---
 
-## 15. What to learn next
+## 17. What to learn next
 
 Now that you understand the basics:
 
@@ -561,7 +704,7 @@ Each of these is worth 1–2 hours of dedicated learning. Don't try to absorb al
 
 ---
 
-## 16. A 30-minute hands-on exercise
+## 18. A 30-minute hands-on exercise
 
 If you do nothing else after reading this, do this exercise:
 
