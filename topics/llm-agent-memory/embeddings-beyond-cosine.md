@@ -143,30 +143,214 @@ For A-Mem, you could in principle store per-attribute embeddings instead of one 
 
 ---
 
-## 4. Late chunking (Jina, 2024)
+## 4. Late chunking (Jina, 2024) — deep dive
 
-**Paper:** arXiv:2409.04701 — already downloaded
+**Paper:** arXiv:2409.04701 — already downloaded as `papers/2409.04701-late-chunking.pdf`.
 
-### The idea
+### The core insight: when does pooling happen?
 
-Standard chunking embeds each chunk *after* splitting. Late chunking does the opposite: embed the *whole document* first, then split the resulting token-level embeddings into chunks.
+All transformer-based embedders work in two phases:
 
 ```
-Standard: text → chunk → embed each chunk → store
-Late:     text → embed (full document) → chunk the embeddings → store
+Text  →  Tokenize  →  [transformer forward pass]  →  Token-level embeddings
+                                                       (one vector per token)
+                                                          ↓
+                                            Pooling (mean / CLS / weighted)
+                                                          ↓
+                                              One chunk-level vector
 ```
 
-### Why it matters
+The token-level embeddings are **contextual** — that's the whole point of attention. The embedding for token "she" depends on what came before it in the sequence. If "Maria" appeared earlier, "she" has already attended to it and "knows" who she is.
 
-Token embeddings produced by modern encoders are *contextual*. The embedding of "she" depends on what's around it. If you chunk before embedding, the chunk containing "she was the first female president" has no context for "she" — the embedding will be ambiguous. If you embed the full document first, "she" already carries the context from earlier in the document where "Maria" was introduced.
+The question is *when* you split into chunks relative to that flow:
 
-Result: chunks retain meaning that would otherwise be lost at chunk boundaries.
+| Strategy | Where splitting happens |
+|---|---|
+| **Early chunking** (the standard) | Split the **text** first, then embed each chunk separately |
+| **Late chunking** | Embed the **whole text** first, then split the **token embeddings** |
 
-### The trade-offs
+That's the entire conceptual difference. The downstream architecture is the same.
 
-- **Requires a long-context embedding model** that can ingest the whole document at once. Most embedding models cap at 8K tokens; some go to 32K (Voyage) or 1M (specialised). If your document is longer than the embedder's context, you can't use late chunking directly.
-- **Slightly more compute** per document (one long embedding pass vs many short ones), but the result is reusable.
-- **Doesn't solve everything** — if the document is 1M tokens, you still need an upstream chunking decision.
+### Concrete worked example
+
+Take this document:
+
+> "Maria is a chemistry teacher. She lives in Boston."
+
+Suppose your target chunk size is one sentence.
+
+**Early chunking (the broken way for this content):**
+
+```
+Step 1: Split text into chunks
+  Chunk A: "Maria is a chemistry teacher."
+  Chunk B: "She lives in Boston."
+
+Step 2: Embed each chunk independently
+  embedder("Maria is a chemistry teacher.")  →  vector_A
+  embedder("She lives in Boston.")            →  vector_B
+```
+
+The problem: when the embedder processed Chunk B, "She" had no antecedent. The embedder's attention couldn't reach back to "Maria" because Maria isn't in Chunk B's input. The resulting `vector_B` is about "someone living in Boston" — generic.
+
+Query: "Where does Maria live?"
+
+→ `vector_B` doesn't match well because Maria isn't represented in it.
+→ Retrieval misses.
+
+**Late chunking (the fix):**
+
+```
+Step 1: Embed the WHOLE document at once
+  embedder("Maria is a chemistry teacher. She lives in Boston.")
+  → token embeddings: [emb("Maria"), emb("is"), emb("a"), emb("chemistry"),
+                       emb("teacher"), emb("."), emb("She"), emb("lives"),
+                       emb("in"), emb("Boston"), emb(".")]
+
+  Critically: emb("She") attended to emb("Maria") during the forward pass.
+  emb("She") now has Maria-context baked into it.
+
+Step 2: Identify chunk boundaries in TOKEN SPACE
+  Chunk A spans tokens 0-5 (Maria...teacher.)
+  Chunk B spans tokens 6-10 (She...Boston.)
+
+Step 3: Pool the token embeddings within each chunk
+  vector_A = mean(token_embeddings[0:6])
+  vector_B = mean(token_embeddings[6:11])  ← includes "She" with Maria-context
+```
+
+Now `vector_B` encodes "She (= Maria) lives in Boston" because the token embedding for "She" already knew about Maria.
+
+Query: "Where does Maria live?"
+
+→ `vector_B` matches well because the Maria-context is in there.
+→ Retrieval hits.
+
+### The algorithm in pseudocode
+
+```python
+def late_chunking(text, embedder, chunk_boundaries):
+    """
+    chunk_boundaries: list of (start_token_idx, end_token_idx) tuples
+                      determined by any chunking strategy (semantic,
+                      sentence-based, fixed-size — doesn't matter HOW)
+    """
+    # Step 1: Tokenize and run a single forward pass over the entire text
+    tokens = tokenizer(text)
+    token_embeddings = embedder.encode_with_hidden_states(tokens)
+    # token_embeddings shape: (num_tokens, embedding_dim)
+
+    # Step 2: For each chunk, mean-pool its token embeddings
+    chunk_embeddings = []
+    for start, end in chunk_boundaries:
+        chunk_emb = token_embeddings[start:end].mean(axis=0)
+        chunk_embeddings.append(chunk_emb)
+
+    return chunk_embeddings
+```
+
+Two important things to note:
+
+1. **You still need to decide chunk boundaries somehow.** Late chunking doesn't replace your boundary-detection logic — it just changes when pooling happens. You can use sentence boundaries, semantic chunking, or fixed sizes to find the boundaries. The boundaries are applied to token positions, not text.
+
+2. **The pooling step is mean-pool (or sometimes attention-weighted mean).** Same operation as standard chunking — just on different tokens.
+
+### What you need to make this work
+
+| Requirement | Reason |
+|---|---|
+| Long-context embedder | The whole document must fit in the embedder's context. Most sentence embedders cap at 512 tokens; you need ≥4K-32K. |
+| Access to token-level outputs | The embedder must expose hidden states per token, not just the pooled vector. |
+| Aligned tokenization | Chunk boundaries in text need to map cleanly to token indices. |
+
+**Long-context embedders that support late chunking:**
+
+- **Jina v3** (jinaai/jina-embeddings-v3) — 8K context, has a `late_chunking=True` flag in the API
+- **Voyage-3-large** — 32K context
+- **bge-m3** (BAAI) — 8K context, supports it manually
+- **NV-Embed-v2** — 32K context (used by HippoRAG 2)
+
+Most OpenAI embeddings (text-embedding-3) **don't expose token-level embeddings** through the API, so you can't do late chunking with them directly. That's a real limitation if you're locked into OpenAI.
+
+### Empirical evidence (from the Jina paper)
+
+The Jina paper reports retrieval gains of **5–20%** over early chunking on various IR benchmarks (MS MARCO, NarrativeQA, etc.). The improvement varies by content type:
+
+| Content type | Late chunking gain |
+|---|---|
+| Heavy pronouns / anaphora (narrative, dialogue) | Largest gain (15–20%) |
+| Cross-section references (long papers) | Moderate gain (10–15%) |
+| Self-contained chunks (code, structured docs) | Small gain (<5%) |
+| Very short documents | Negligible gain |
+
+The intuition: late chunking helps most when chunks would otherwise be missing crucial context from elsewhere in the document. If your chunks are already self-contained, the technique adds little.
+
+### Comparison with similar approaches
+
+| Technique | When pooling happens | Storage | When to use |
+|---|---|---|---|
+| **Early chunking** (standard) | Per chunk, before storage | 1 vector / chunk | Default; simple content |
+| **Late chunking** | After full-document embedding | 1 vector / chunk | Content with cross-chunk references |
+| **ColBERT (late interaction)** | Never (no pooling) | 1 vector / token | Maximum retrieval quality, high cost |
+| **Sentence-window retrieval** | At retrieval time, surrounding sentences added | 1 vector / chunk + metadata | LangChain pattern; different problem |
+| **Document-level embedding** | Once over whole doc | 1 vector / document | Coarse retrieval only |
+
+The mental model: late chunking is *early chunking* + *cross-chunk attention preservation*. Same storage cost as early chunking, better quality for context-heavy content.
+
+### Cost considerations
+
+- **Embedding compute**: roughly equivalent to early chunking total cost (one long pass vs many short passes — usually similar total token-throughput).
+- **Memory at indexing time**: higher than early chunking because you hold the full document's token embeddings during pooling. For a 32K-token document with 1024-dim embeddings in float32, that's ~131 MB temporarily.
+- **Storage at rest**: identical to early chunking. The final stored vectors are the same shape and count.
+- **Retrieval cost**: identical. No change at query time.
+
+So the cost story is "small extra memory at index time, otherwise free." A real win.
+
+### Practical implementation (Jina v3 example)
+
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("jinaai/jina-embeddings-v3")
+
+# Late chunking via the Jina API flag
+chunk_embeddings = model.encode(
+    document_text,
+    task="retrieval.passage",
+    late_chunking=True,
+    chunk_size=500,  # in tokens
+)
+# Returns a list of chunk-level vectors; chunks have cross-document context
+```
+
+Or manually with any HuggingFace transformer that exposes hidden states:
+
+```python
+import torch
+from transformers import AutoTokenizer, AutoModel
+
+tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v3")
+model = AutoModel.from_pretrained("jinaai/jina-embeddings-v3")
+
+inputs = tokenizer(document_text, return_tensors="pt", truncation=True)
+with torch.no_grad():
+    outputs = model(**inputs, output_hidden_states=True)
+
+# Token-level embeddings from the last layer
+token_embs = outputs.last_hidden_state[0]  # (num_tokens, hidden_dim)
+
+# Find chunk boundaries (in token positions) using your chunker of choice
+# ... boundaries = [(0, 100), (100, 250), (250, 500), ...]
+
+chunk_embs = [token_embs[s:e].mean(dim=0) for s, e in boundaries]
+```
+
+### When late chunking is the wrong tool
+
+- **Documents longer than the embedder's context.** If your document is 1M tokens and your embedder maxes at 32K, you have to pre-split, which defeats the purpose. (You can do "windowed late chunking" — chunk within sub-documents — but the cross-window context is still lost.)
+- **You're using OpenAI embeddings exclusively.** OpenAI's API doesn't expose token-level outputs, so late chunking isn't doable.
+- **Chunks are already self-contained.** If you're chunking code or highly structured docs, the gain is marginal.
+- **Real-time low-latency requirements.** The long forward pass adds latency to indexing.
 
 ### When it helps
 
@@ -174,11 +358,25 @@ Result: chunks retain meaning that would otherwise be lost at chunk boundaries.
 - Domains with heavy pronoun use or implicit subjects (narrative, dialogue)
 - Any setup where you'd benefit from chunks "remembering" the document they came from
 
-### For your project
+### For your project specifically
 
-**A-Mem improvement:** A-Mem stores conversation turns as separate notes. Late chunking could let you embed *whole conversations* and split into notes after embedding — each note then encodes its place in the conversation, not just its local content.
+**A-Mem improvement:** A-Mem stores conversation turns as separate notes. Late chunking could let you embed *whole conversations* and split into notes after embedding — each note then encodes its place in the conversation, not just its local content. Retrieving a memory that says "she said yes" is useless without context. Late chunking would let the embedding of that memory carry knowledge of *who* said yes, even though only "she said yes" is in the note text.
 
-**Memory recall improvement:** retrieving a memory that says "she said yes" is useless without context. Late chunking would let the embedding of that memory carry knowledge of *who* said yes, even though only "she said yes" is in the note text.
+**HippoRAG 2 improvement:** the passage embeddings used as PPR seeds are currently from independent passage embeddings. Late chunking would let each passage embed with knowledge of the broader document it came from. Could moderately improve seed quality on long documents.
+
+**The catch:** NV-Embed-v2 (used by HippoRAG 2) supports 32K context but doesn't have a "late chunking mode" exposed in its API — you'd need to implement it manually using the HuggingFace transformers interface.
+
+### Experiment path if you want to validate the technique
+
+If you want to run this as a contained experiment:
+
+1. Pick Jina v3 (easiest API — `late_chunking=True` flag).
+2. Take 5–10 documents that have cross-chunk references (narratives or papers with references to earlier sections).
+3. Embed them once with early chunking, once with late chunking.
+4. Run a retrieval task against both with queries that require the cross-chunk context.
+5. Measure top-k recall difference.
+
+Should take half a day and give you direct intuition for when it helps.
 
 ---
 
