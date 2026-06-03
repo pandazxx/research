@@ -34,6 +34,5 @@ experiments/**/*.log
 
 # Secrets — never commit
 .env
-.envrc
 *.key
 secrets.json
