@@ -15,32 +15,62 @@ This is the standard workflow for ML researchers who don't want to be locked int
 
 ## Setup
 
-```bash
-# In the repo root:
-python -m venv .venv
-source .venv/bin/activate
-pip install -r experiments/requirements.txt
-python -m ipykernel install --user --name research --display-name research
+This repo uses **[uv](https://docs.astral.sh/uv/)** for Python environment + dependency management and **[just](https://just.systems/)** for task automation. Both should be installed before starting.
 
-# Optional: Jupytext auto-pairing for new notebooks
-mkdir -p ~/.jupyter
-cat >> ~/.jupyter/jupyter_lab_config.py << 'EOF'
-c.ContentsManager.default_jupytext_formats = "ipynb,py:percent"
-EOF
+Install uv:
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-To run a notebook:
+Install just:
 
 ```bash
-jupyter lab
-# Then open any experiments/**/*.py file — Jupyter auto-creates the paired .ipynb view.
+# macOS
+brew install just
+
+# Linux (via cargo)
+cargo install just
+
+# or download from https://github.com/casey/just/releases
 ```
 
-To run a notebook headless (for CI or one-off):
+Then, from the repo root:
 
 ```bash
-jupytext --to ipynb experiments/embeddings/01-anisotropy.py
-jupyter nbconvert --execute --to notebook experiments/embeddings/01-anisotropy.ipynb
+just setup     # creates .venv, installs deps, registers kernel, installs pre-commit hooks
+just lab       # starts JupyterLab in your browser
+```
+
+That's it. `just setup` is idempotent — re-run after pulling changes to sync any new dependencies.
+
+### Run a single notebook headless
+
+```bash
+just run experiments/embeddings/01-anisotropy.py
+```
+
+This converts the `.py` to a `.ipynb`, executes every cell, and writes the executed `.ipynb` next to the `.py`. The executed `.ipynb` is gitignored (only the source `.py` gets committed).
+
+### Just recipes (all available commands)
+
+```bash
+just              # list all recipes (default action)
+just setup        # install deps + register kernel + install hooks
+just install      # install deps only (no kernel setup)
+just lab          # start JupyterLab
+just run FILE     # run a specific notebook end-to-end
+just convert-all  # convert all .py notebooks to .ipynb (no execution)
+just strip        # strip outputs from any .ipynb files
+just clean        # remove .venv, caches, generated .ipynb files
+just lock         # update uv.lock
+just sync         # sync env from uv.lock (after pulling)
+just python       # show Python version in use
+just deps         # show installed packages
 ```
 
 ---
@@ -50,7 +80,6 @@ jupyter nbconvert --execute --to notebook experiments/embeddings/01-anisotropy.i
 ```
 experiments/
 ├── README.md              ← you are here
-├── requirements.txt       ← experiment dependencies
 ├── shared/                ← reusable helpers (regular Python, not notebooks)
 │   ├── embedding_utils.py    cosine, token-position lookup, model loading
 │   ├── dataset_loader.py     load comparison-dataset/dataset.json
