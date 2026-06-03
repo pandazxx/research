@@ -5,6 +5,12 @@
 #     text_representation:
 #       extension: .py
 #       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.3
+#   kernelspec:
+#     display_name: Python 3 (ipykernel)
+#     language: python
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -139,3 +145,5 @@ print(f"Joey ↔ wife (same sequence, distant):              {cosine(vec_joey, v
 # 3. **What surprised me?** ___ (fill in after running)
 # 4. **What's next?** Run `02-distance-ablation.py` to see how within-sequence
 #    similarity decays with token distance specifically.
+
+# %%
