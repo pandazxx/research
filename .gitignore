@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+# Notebooks themselves are gitignored — we commit the .py versions (Jupytext)
+*.ipynb
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Experiment outputs (large)
+experiments/**/results/
+experiments/**/*.cache
+experiments/**/*.log
+
+# Secrets — never commit
+.env
+*.key
+secrets.json
