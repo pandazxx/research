@@ -22,6 +22,7 @@ dependencies = [
     "torch>=2.1",
     "transformers>=4.40",
     "sentence-transformers>=3.0",
+    "einops>=0.7",  # required by jina-embeddings-v3's flash implementation (modeling_lora.py)
 
     # Clustering / dimensionality reduction
     "umap-learn>=0.5",
