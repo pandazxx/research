@@ -26,9 +26,9 @@ setup: install kernel hooks
 
 # === Running experiments ===
 
-# Start JupyterLab in the current directory
+# Start JupyterLab in the current directory (binds 0.0.0.0 so it's reachable from a host browser when running in a container / VM)
 lab:
-    uv run jupyter lab
+    uv run jupyter lab --ip=0.0.0.0 --no-browser
 
 # Run a specific notebook headless (e.g. just run experiments/embeddings/01-anisotropy.py)
 run NOTEBOOK:
