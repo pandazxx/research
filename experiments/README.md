@@ -83,6 +83,7 @@ experiments/
 ├── shared/                ← reusable helpers (regular Python, not notebooks)
 │   ├── embedding_utils.py    cosine, token-position lookup, model loading
 │   ├── dataset_loader.py     load comparison-dataset/dataset.json
+│   ├── llm_clients.py        OpenAI-compatible client for NVIDIA NIM
 │   └── system_loaders.py     load HippoRAG / A-Mem (placeholders)
 ├── embeddings/            ← experiments on embedding behavior
 │   ├── 01-anisotropy.py
@@ -94,6 +95,9 @@ experiments/
 │   ├── 07-novelty-scoring.py
 │   ├── 08-cross-encoder-reranking.py
 │   └── 09-anisotropy-context-split.py
+│   └── 08-cross-encoder-reranking.py
+├── llms/                  ← surveys / sandboxes for LLM choices
+│   └── 01-nim-model-survey.py
 └── memory-systems/        ← experiments comparing / probing HippoRAG and A-Mem
     ├── 01-run-comparison-dataset.py
     ├── 02-contradiction-stress-test.py
@@ -122,6 +126,19 @@ experiments/
 | 07 | `07-novelty-scoring.py` | Anomaly / novelty as a write-policy signal (mirrors brain's dopamine novelty) | Skeleton |
 | 08 | `08-cross-encoder-reranking.py` | 2-stage retrieval: dense embeddings + cross-encoder rerank | Skeleton |
 | 09 | `09-anisotropy-context-split.py` | Re-runs 01's Joey/She/wife pairs after splitting the document into 4 per-sentence embeddings; measures how much within-sequence similarity collapses | Runnable |
+
+### LLMs — `experiments/llms/`
+
+| # | Notebook | What it investigates | Status |
+|---|---|---|---|
+| 01 | `01-nim-model-survey.py` | Side-by-side comparison of several NVIDIA-NIM-hosted LLMs on memory-style QA prompts | Runnable; needs `NVIDIA_API_KEY` |
+
+#### NIM environment variables
+
+| Variable | Purpose |
+|---|---|
+| `NVIDIA_API_KEY` | Required. Get one at https://build.nvidia.com/. `NIM_API_KEY` is accepted as a fallback name. |
+| `NIM_BASE_URL` | Optional. Override the endpoint (e.g. point at a self-hosted NIM container). Defaults to `https://integrate.api.nvidia.com/v1`. |
 
 ### Memory systems — `experiments/memory-systems/`
 
