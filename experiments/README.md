@@ -93,6 +93,8 @@ experiments/
 │   ├── 05-late-chunking.py
 │   ├── 06-clustering-discovery.py
 │   ├── 07-novelty-scoring.py
+│   ├── 08-cross-encoder-reranking.py
+│   └── 09-anisotropy-context-split.py
 │   └── 08-cross-encoder-reranking.py
 ├── llms/                  ← surveys / sandboxes for LLM choices
 │   └── 01-nim-model-survey.py
@@ -123,6 +125,7 @@ experiments/
 | 06 | `06-clustering-discovery.py` | UMAP + HDBSCAN on memory corpus → automatic topic discovery | Skeleton |
 | 07 | `07-novelty-scoring.py` | Anomaly / novelty as a write-policy signal (mirrors brain's dopamine novelty) | Skeleton |
 | 08 | `08-cross-encoder-reranking.py` | 2-stage retrieval: dense embeddings + cross-encoder rerank | Skeleton |
+| 09 | `09-anisotropy-context-split.py` | Re-runs 01's Joey/She/wife pairs after splitting the document into 4 per-sentence embeddings; measures how much within-sequence similarity collapses | Runnable |
 
 ### LLMs — `experiments/llms/`
 
