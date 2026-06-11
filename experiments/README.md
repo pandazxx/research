@@ -95,9 +95,9 @@ experiments/
 │   ├── 07-novelty-scoring.py
 │   ├── 08-cross-encoder-reranking.py
 │   └── 09-anisotropy-context-split.py
-│   └── 08-cross-encoder-reranking.py
 ├── llms/                  ← surveys / sandboxes for LLM choices
-│   └── 01-nim-model-survey.py
+│   ├── 01-nim-model-survey.py
+│   └── 02-nim-prompt-ladder.py
 └── memory-systems/        ← experiments comparing / probing HippoRAG and A-Mem
     ├── 01-run-comparison-dataset.py
     ├── 02-contradiction-stress-test.py
@@ -132,6 +132,7 @@ experiments/
 | # | Notebook | What it investigates | Status |
 |---|---|---|---|
 | 01 | `01-nim-model-survey.py` | Side-by-side comparison of several NVIDIA-NIM-hosted LLMs on memory-style QA prompts | Runnable; needs `NVIDIA_API_KEY` |
+| 02 | `02-nim-prompt-ladder.py` | Paste a single prompt; runs it through a tiny→frontier ladder of NIM models (~3B → ~405B) and shows latency + side-by-side outputs | Runnable; needs `NVIDIA_API_KEY` |
 
 #### NIM environment variables
 
