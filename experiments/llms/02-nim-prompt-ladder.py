@@ -40,18 +40,43 @@ are but has never heard the term "late chunking".
 # %% [markdown]
 # ## 2. The model ladder
 #
-# Tiny → frontier, in order. Edit freely — the NIM catalog at
-# https://build.nvidia.com/ moves; if a model 404s the survey continues
-# and the row will show `<error: ...>`.
+# Tiny → frontier, sorted by parameter count. Multiple providers at most
+# tiers (meta, google, microsoft, nvidia, qwen, mistral, deepseek) so you
+# can see provider-style differences at a given size.
+#
+# Edit freely — the NIM catalog at https://build.nvidia.com/ moves. If a
+# model 404s the survey continues and the row will show `<error: ...>`.
+#
+# Notes on the entries below:
+# - `a3b` / `a10b` / `a35b` suffixes mean Mixture-of-Experts (only that many
+#   parameters are active per token, even though the full model is much bigger).
+# - `qwen/qwq-32b` is a *reasoning* model — its output usually contains
+#   `<think>…</think>` chain-of-thought before the final answer, so expect
+#   longer responses and higher latency.
 
 # %%
 MODEL_LADDER: list[tuple[str, str]] = [
-    # (size_label, model_id)
-    ("tiny ~3B",      "meta/llama-3.2-3b-instruct"),
-    ("small ~8B",     "meta/llama-3.1-8b-instruct"),
-    ("medium ~47B*",  "mistralai/mixtral-8x7b-instruct-v0.1"),  # MoE, ~13B active per token
-    ("large ~70B",    "meta/llama-3.1-70b-instruct"),
-    ("frontier ~405B", "meta/llama-3.1-405b-instruct"),
+    # ─── tiny (~1-4B) ─────────────────────────────────────────────
+    ("1B   meta",      "meta/llama-3.2-1b-instruct"),
+    ("2B   google",    "google/gemma-2-2b-it"),
+    ("3B   meta",      "meta/llama-3.2-3b-instruct"),
+    ("4B   ms",        "microsoft/phi-4-mini-instruct"),
+    ("4B   nvidia",    "nvidia/nemotron-mini-4b-instruct"),
+    # ─── small (~8-9B) ────────────────────────────────────────────
+    ("8B   meta",      "meta/llama-3.1-8b-instruct"),
+    ("9B   nvidia",    "nvidia/nvidia-nemotron-nano-9b-v2"),
+    # ─── medium (~30-50B) ────────────────────────────────────────
+    ("32B  qwen",      "qwen/qwq-32b"),                              # reasoning model
+    ("47B  mistral",   "mistralai/mixtral-8x7b-instruct"),           # MoE, ~13B active
+    ("49B  nvidia",    "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # ─── large (~70-141B) ────────────────────────────────────────
+    ("70B  meta",      "meta/llama-3.3-70b-instruct"),
+    ("80B  qwen",      "qwen/qwen3-next-80b-a3b-instruct"),          # MoE
+    ("141B mistral",   "mistralai/mixtral-8x22b-instruct"),          # MoE
+    # ─── frontier (>200B) ────────────────────────────────────────
+    ("253B nvidia",    "nvidia/llama-3.1-nemotron-ultra-253b-v1"),
+    ("480B qwen",      "qwen/qwen3-coder-480b-a35b-instruct"),       # MoE, coder-tuned
+    ("v4   deepseek",  "deepseek-ai/deepseek-v4-pro"),
 ]
 
 # Per-request settings. Lower temperature to make outputs comparable.
