@@ -94,7 +94,8 @@ experiments/
 │   ├── 06-clustering-discovery.py
 │   ├── 07-novelty-scoring.py
 │   ├── 08-cross-encoder-reranking.py
-│   └── 09-anisotropy-context-split.py
+│   ├── 09-anisotropy-context-split.py
+│   └── 10-bert-polysemy.py
 ├── llms/                  ← surveys / sandboxes for LLM choices
 │   ├── 01-nim-model-survey.py
 │   └── 02-nim-prompt-ladder.py
@@ -126,6 +127,7 @@ experiments/
 | 07 | `07-novelty-scoring.py` | Anomaly / novelty as a write-policy signal (mirrors brain's dopamine novelty) | Skeleton |
 | 08 | `08-cross-encoder-reranking.py` | 2-stage retrieval: dense embeddings + cross-encoder rerank | Skeleton |
 | 09 | `09-anisotropy-context-split.py` | Re-runs 01's Joey/She/wife pairs after splitting the document into 4 per-sentence embeddings; measures how much within-sequence similarity collapses | Runnable |
+| 10 | `10-bert-polysemy.py` | Probes BERT contextual embeddings on polysemous "apple" across 3 regimes: cross-sentence polysemy, long-passage-vs-short-query alignment, and two senses in the same sentence | Runnable |
 
 ### LLMs — `experiments/llms/`
 
