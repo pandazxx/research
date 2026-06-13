@@ -127,7 +127,7 @@ experiments/
 | 07 | `07-novelty-scoring.py` | Anomaly / novelty as a write-policy signal (mirrors brain's dopamine novelty) | Skeleton |
 | 08 | `08-cross-encoder-reranking.py` | 2-stage retrieval: dense embeddings + cross-encoder rerank | Skeleton |
 | 09 | `09-anisotropy-context-split.py` | Re-runs 01's Joey/She/wife pairs after splitting the document into 4 per-sentence embeddings; measures how much within-sequence similarity collapses | Runnable |
-| 10 | `10-bert-polysemy.py` | Probes BERT contextual embeddings on polysemous "apple" across 3 regimes: cross-sentence polysemy, long-passage-vs-short-query alignment, and two senses in the same sentence | Runnable |
+| 10 | `10-bert-polysemy.py` | Probes BERT-family contextual embeddings on polysemous "apple" across 3 regimes (cross-sentence polysemy, passage↔query alignment, intra-sentence disambiguation) × 3 encoders (`bert-base-uncased`, `bert-large-uncased`, `BAAI/bge-large-en-v1.5`) — separates the effect of scale from the effect of embedding-task fine-tuning | Runnable |
 
 ### LLMs — `experiments/llms/`
 
