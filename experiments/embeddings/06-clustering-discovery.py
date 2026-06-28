@@ -71,14 +71,18 @@ reducer = umap.UMAP(
 )
 embedding_2d = reducer.fit_transform(embs)
 
+print(f"embedding_2d shape: {embedding_2d.shape}")
+
 # %% [markdown]
 # ## Clustering (HDBSCAN)
+#
+# **TODO:** why we do clustering with only 2 dimensions embedding?
 
 # %%
 import hdbscan
 
-clusterer = hdbscan.HDBSCAN(min_cluster_size=3, min_samples=2)
-labels = clusterer.fit_predict(embedding_2d)
+clusterer = hdbscan.HDBSCAN(min_cluster_size=5, min_samples=2)
+labels = clusterer.fit_predict(embs)
 print(f"Discovered clusters: {set(labels)}")
 print(f"  (-1 = noise / outlier)")
 
@@ -113,6 +117,9 @@ for cluster_id in sorted(df["cluster"].unique()):
     print(f"\n=== Cluster {cluster_id} ===")
     for t in df[df["cluster"] == cluster_id]["text"]:
         print(f"  - {t}")
+print(f"\n=== Outlier ===")
+for t in df[df["cluster"] == -1]["text"]:
+    print(f"  - {t}")
 
 # %% [markdown]
 # ## Use case — memory consolidation

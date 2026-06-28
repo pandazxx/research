@@ -39,11 +39,13 @@ from experiments.shared.embedding_utils import cosine, get_token_vectors
 # %%
 # A longer sentence with diverse content tokens spread across positions
 text = (
-    "Joey lives in Singapore. Alice works in Tokyo. "
-    "Bob teaches in Boston. Dana cooks in Lisbon. "
-    "Sam paints in Madrid. Tom builds in Berlin."
+    "Apple Inc. was founded on April 1, 1976 by Steve Jobs, Steve Wozniak, "
+    "and Ronald Wayne in a garage in Los Altos, California. The company "
+    "initially sold the Apple I personal computer kit, which Wozniak had "
+    "designed. Within a decade Apple had become one of the most influential "
+    "consumer technology companies in the world, releasing the Macintosh in 1984."
 )
-tokens, vectors, mask = get_token_vectors(text)
+tokens, vectors, mask = get_token_vectors(text, model_name="BAAI/bge-large-en-v1.5")
 print(f"Total tokens: {len(tokens)}")
 
 # %% [markdown]

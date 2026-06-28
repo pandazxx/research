@@ -25,6 +25,8 @@
 # embeddings. If the quality lift is real, it's a no-brainer for those embedders.
 #
 # **References.** `embeddings-beyond-cosine.md` §4; `papers/2409.04701-late-chunking.pdf`.
+#
+# **TODO** apply to conversation dataset such as LoMoCo
 
 # %%
 import sys

@@ -88,6 +88,8 @@ def sentence_chunks(text, sentences_per_chunk=2):
 
 chunks_sentence = sentence_chunks(document)
 print(f"Sentence chunks: {len(chunks_sentence)}")
+for i in range(len(chunks_sentence)):
+    print(f"[{i}]: {chunks_sentence[i]}")
 
 # %% [markdown]
 # ## Approach 3 — Semantic chunking (embedding-based)
@@ -131,9 +133,9 @@ for c in chunks_semantic:
 
 # %%
 queries = {
-    "When was the Eiffel Tower built?": "Eiffel",
-    "Who created Python?": "Python",
-    "How many calories in a banana?": "Bananas",
+    "When was the Eiffel Tower built?": "1887 to 1889",
+    "Who created Python?": "Guido van Rossum",
+    "How many calories in a banana?": "about 105 calories",
 }
 
 def evaluate_chunking(name, chunks, embedder, queries):
@@ -145,7 +147,7 @@ def evaluate_chunking(name, chunks, embedder, queries):
         top = sims.argmax()
         hit = expected_topic.lower() in chunks[top].lower()
         print(f"  Q: {q!r}")
-        print(f"    top chunk (sim={sims[top]:.3f}): {chunks[top][:80]}...")
+        print(f"    top chunk (sim={sims[top]:.3f}): {chunks[top]}")
         print(f"    expected '{expected_topic}': {'HIT' if hit else 'MISS'}")
 
 evaluate_chunking("Fixed-size", chunks_fixed, embedder, queries)
