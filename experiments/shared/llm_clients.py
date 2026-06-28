@@ -22,6 +22,7 @@ NIM_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 NIM_DEFAULT_MODELS: list[str] = [
     "meta/llama-3.1-70b-instruct",
     "meta/llama-3.1-8b-instruct",
+    "qwen/qwen2.5-7b-instruct",
     "mistralai/mixtral-8x7b-instruct-v0.1",
     "nvidia/llama-3.1-nemotron-70b-instruct",
 ]
