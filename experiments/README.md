@@ -107,7 +107,8 @@ experiments/
     ├── 05-hipporag-embedder-ablation.py
     ├── 06-amem-prompt-sensitivity.py
     ├── 07-hipporag-no-ppr-ablation.py
-    └── 08-amem-no-evolution-ablation.py
+    ├── 08-amem-no-evolution-ablation.py
+    └── 09-memory-r1-simulation.py
 ```
 
 ---
@@ -155,6 +156,7 @@ experiments/
 | 06 | `06-amem-prompt-sensitivity.py` | Vary A-Mem's evolution prompt; measure behaviour difference | Needs A-Mem repro |
 | 07 | `07-hipporag-no-ppr-ablation.py` | Disable PPR; falls back to top-k embedding retrieval | Needs HippoRAG repro |
 | 08 | `08-amem-no-evolution-ablation.py` | Disable A-Mem's memory evolution; measure quality drop | Needs A-Mem repro |
+| 09 | `09-memory-r1-simulation.py` | Prompted Memory-R1-style manager + answer agent using NIM, switchable Llama/Qwen agents, BGE/E5/OpenAI embeddings, and in-memory or LanceDB local storage | Runnable; needs `NVIDIA_API_KEY`, optional `OPENAI_API_KEY` / `lancedb` |
 
 ---
 
