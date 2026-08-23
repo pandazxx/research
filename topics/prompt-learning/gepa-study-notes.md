@@ -89,7 +89,44 @@ Notes: paper's Qwen3 sampling settings (temp 0.6 / top-p 0.95 / top-k 20) are th
 3. Optional: HotpotQA/HoVer after standing up the Wikipedia index; GRPO column only if renting cloud GPUs.
 4. Cross-topic experiment (see reading guide, study question 12): GEPA on memory-op prompts over LoCoMo vs Memory-R1's GRPO-trained manager.
 
+---
+
+## Part 3 — The official repo: gskill and agent skills
+
+Source: https://github.com/gepa-ai/gepa (studied 2026-08-23: `src/gepa/gskill/`, `docs/docs/guides/{gskill,agent-skill,claude-cli-as-proposer}.md`, blog post "Automatically Learning Skills for Coding Agents", 2026-02-18, Tan & Agrawal et al., UC Berkeley). Two distinct "skill" features:
+
+### gskill — GEPA learns repo-specific skills FOR coding agents
+
+The paper's loop with the candidate swapped: evolve the *skill file text* injected into a coding agent (seed = empty string), not a module prompt inside a pipeline.
+
+- **Tasks / where μ comes from:** SWE-smith mines real commits from any GitHub repo, injects bugs, emits hundreds of verifiable instances (problem statement + Docker env + tests). μ = tests pass (1.0) / fail (0.0).
+- **Loop:** agent (default mini-SWE-agent + gpt-5-mini) runs task batches in parallel Docker containers with current skills; fitness returns `(score, side_info)` where side_info = patch + agent trace + test output — the paper's μ_f feedback-text idea, verbatim; a stronger reflection model (default gpt-5.2-pro) rewrites the skills. Budget ~600 metric calls; splits ~200 train / 50 val (Pareto) / 100 test. Two proposers: `batch` (all results at once) and `loop` (one failure at a time, then merge — more detailed skills, more LLM calls).
+- **Deploy:** output is plain text (`best_skills.txt`) → dropped in as `CLAUDE.md` or proper `.claude/skills/<repo>/SKILL.md`. No retraining; works in any agent that reads skills.
+
+**Results (blog, ~300 rollouts per repo):**
+
+| Setting | jinja (Python) | bleve (Go) |
+|---|---|---|
+| Mini-SWE-agent (gpt-5-mini) baseline → +skills | 55% → 82% | 24% → 93% |
+| Claude Code Haiku 4.5 baseline → +skills (transfer, unmodified) | 93.9% → ~100% | 79.3% → 98.3%, *faster* (173s → 142s) |
+| Claude Code Sonnet 4.5 baseline → +skills | 100% → 98.5% (saturated) | 94.8% → 100% (285s → 169s) |
+
+Takeaways: (1) biggest gains where the baseline struggles (bleve ≈ 4×); (2) skills learned with a cheap model on a toy agent transfer to a production agent across model families — Obs 6 cross-model transfer replayed at agent scale; (3) skills cut *duration/cost*, not just errors (less navigation flailing). Learned skills read like compressed operational procedures ("run `go test ./...` early, narrow with `-run TestName -count=1`, treat tests as the bug report, change one behavior at a time"). Stated future work: task sources beyond SWE-smith (their tasks skew simple), evolving skill *scripts*, non-SWE skills (computer use).
+
+**Practical value for Claude Code/Codex:** an automated, data-driven `CLAUDE.md`/`AGENTS.md` generator grounded in what the agent actually got wrong on the target repo. Cross-topic note: gskill is *automated procedural-memory consolidation* (experience → reflection → durable text) — the language-space analogue of the RL-based memory-ops learning in `topics/llm-agent-memory/`.
+
+### The shipped Agent Skill — teaching agents to USE gepa
+
+`.claude/skills/gepa-optimize-anything/` (SKILL.md + references + templates + preflight script): auto-discovered by Claude Code in a repo clone (Cursor/Codex/Copilot/Gemini CLI read the same convention); installable anywhere via `/plugin install gepa-optimize-anything@gepa`. Teaches the agent to drive `optimize_anything` — the generalized API where GEPA is one engine among several — including mode choice (single-task / multi-task / generalization), feedback-rich evaluator design, and budget sizing.
+
+Library has grown past the paper:
+- `optimize_anything` engines: `gepa` (default), `best_of_n` (baseline), `autoresearch` and `meta_harness` — the latter two run a *Claude Code subprocess as the optimizer/proposer*. The relationship is bidirectional: GEPA improves agents; agents serve as GEPA's proposer.
+- `reflection_lm` accepts any `(str) -> str` callable — documented pattern wraps `claude -p` (Claude subscription as the reflection LM, no API key).
+- Candidate = "any string an evaluator can score": prompts, code/CUDA kernels, configs, regex/SQL, agent scaffolds, encoded search solutions.
+
 ## Open Questions
 - Does fp16 (V100) meaningfully shift Qwen3 8B scores vs the paper's bf16? Measure before bulk runs.
 - Reflection-LM cost accounting (App. N): does the 35× rollout advantage survive if reflection calls are priced at a stronger model's rates?
 - How does GEPA behave when μ_f is nearly as opaque as the scalar (no decomposable checkers)? None of the six benchmarks test this.
+- gskill: do learned skills overfit SWE-smith-style bug-fixing (the blog admits tasks skew simple)? Test on feature-add or refactor tasks.
+- Could gskill's recipe learn *memory-management* skills (procedural memory) for a LoCoMo-style agent — connecting to the Memory-R1 comparison experiment?
