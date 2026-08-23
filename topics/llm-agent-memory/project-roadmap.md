@@ -407,6 +407,7 @@ This is the API-only estimate. If you switch to Path B mid-year, ongoing costs d
 | 2026-05-22 | Warmup pairing: HippoRAG + A-Mem | HippoRAG aligned with brain-inspired graph search interest; A-Mem provides paradigm contrast (LLM-managed notes vs explicit KG) | After warmups complete (end of W5) |
 | 2026-05-22 | Warmup duration extended from 1 week to 2 weeks each | Honest estimate from PR review: 1 week is too tight for first-time reproductions of unfamiliar codebases. Adds 2 weeks total to Phase 1 (12 → 14 weeks); total timeline ~12.5 months. | End of warmup phase |
 | 2026-05-22 | Compute path: API-only (Path A) | No fine-tuning planned; both warmup baselines and candidate mechanisms are API-friendly. Laptop sufficient. | If embedding volume crosses ~50M tokens/month |
+| 2026-06-14 | Next-level study batch added (8 papers): Memory-R2, MMPO, AgeMem, MemSearcher, MemoPilot, HORMA, Memory-T1, JitRL | All cluster around RL-driven memory policies (Nov 2025 – June 2026). Original 4-paper "RL-trained" framing widened to "RL-driven" to include JitRL (no gradient updates). Reading guide in `next-level-study-index.md`. | End of one-week reading block — re-evaluate whether any change the Phase 1B official-baseline choice or the mechanism direction. Critical question: if JitRL replicates on memory benchmarks, does the project abandon training-based RL entirely? |
 | | | | |
 
 ---
